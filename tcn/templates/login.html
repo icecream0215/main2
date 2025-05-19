@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 350px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .links {
+            margin-top: 15px;
+            text-align: center;
+        }
+        .links a {
+            color: #2196F3;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .error-message {
+            color: #f44336;
+            margin-bottom: 15px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>用户登录</h2>
+        <div id="error-message" class="error-message"></div>
+        <div class="form-group">
+            <label for="username">用户名</label>
+            <input type="text" id="username" name="username" required>
+        </div>        <div class="form-group">
+            <label for="password">密码</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <div class="form-group">
+            <label for="role">用户角色</label>
+            <select id="role" name="role">
+                <option value="patient">患者</option>
+                <option value="doctor">医生</option>
+                <option value="admin">管理员</option>
+            </select>
+        </div>
+        <button class="btn" onclick="login()">登录</button>
+        <div class="links">
+            <a href="/register">注册新账户</a>
+            <a href="/reset-password-request">忘记密码？</a>
+        </div>
+    </div>    <script>
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            const errorMessage = document.getElementById('error-message');
+            
+            if (!username || !password) {
+                errorMessage.textContent = '请填写所有必填字段';
+                errorMessage.style.display = 'block';
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+                
+                // 发送登录请求
+                const response = await fetch('/token', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 存储令牌
+                    localStorage.setItem('access_token', data.access_token);
+                    
+                    // 获取用户信息
+                    const userInfo = await fetch('/users/me', {
+                        headers: {
+                            'Authorization': `Bearer ${data.access_token}`
+                        }
+                    }).then(res => res.json());
+                    
+                    // 检查用户角色是否匹配当前选择
+                    if (userInfo.role !== role) {
+                        errorMessage.textContent = `您的账户不是${role === 'admin' ? '管理员' : (role === 'doctor' ? '医生' : '患者')}角色，请选择正确的角色`;
+                        errorMessage.style.display = 'block';
+                        localStorage.removeItem('access_token');
+                        return;
+                    }
+                    
+                    // 存储用户角色
+                    localStorage.setItem('user_role', userInfo.role);
+                    
+                    // 根据角色重定向到不同页面
+                    if (role === 'admin') {
+                        window.location.href = '/admin';
+                    } else if (role === 'doctor') {
+                        window.location.href = '/doctor';
+                    } else {
+                        window.location.href = '/';
+                    }
+                } else {
+                    errorMessage.textContent = data.detail || '登录失败，请检查用户名和密码';
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                errorMessage.textContent = '登录请求失败，请稍后再试';
+                errorMessage.style.display = 'block';
+                console.error('登录错误:', error);
+            }
+        }
+    </script>
+</body>
+</html>

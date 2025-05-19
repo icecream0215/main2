@@ -1,0 +1,14 @@
+{
+    "include": [
+        "tcn"
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/__pycache__",
+        "OpenFace_2.2.0_win_x64"
+    ],
+    "typeCheckingMode": "off",
+    "useLibraryCodeForTypes": true,
+    "reportMissingImports": false,
+    "reportMissingTypeStubs": false
+}

@@ -1,0 +1,10 @@
+Input:C:\Users\ICE-CR~1\AppData\Local\Temp\tmp5s6m69qe.mp4
+Input full path:C:\Users\ICE-CR~1\AppData\Local\Temp\tmp5s6m69qe.mp4
+Camera parameters:1312.5,1312.5,960,540
+Output csv:tmp5s6m69qe.csv
+Gaze: 1
+AUs: 1
+Landmarks 2D: 1
+Landmarks 3D: 0
+Pose: 1
+Shape parameters: 0

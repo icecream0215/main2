@@ -12,7 +12,7 @@ class Conv1d(nn.Module): #一维卷积
     def __init__(self) -> None:
         super(Conv1d, self).__init__()
         self.layer1 = nn.Sequential(
-            nn.Conv1d(171, 32, 3, padding=1),  # 卷积：输入通道171，输出32，卷积核大小3，保持尺寸（padding=1）
+            nn.Conv1d(175, 32, 3, padding=1),  # 卷积：输入通道175，输出32，卷积核大小3，保持尺寸（padding=1）
             nn.BatchNorm1d(32),                # 对32个通道做批归一化
             nn.ReLU(),                         # 激活函数ReLU
             nn.MaxPool1d(2),                   # 最大池化，步长2，降低特征图尺寸
@@ -196,11 +196,27 @@ class ConvNet1d(nn.Module):
 
 
 
-class gateRegress(): #
-    def __init__(self) -> None:
-        pass
-    def forward(self, ):
-        pass
+class gateRegress(nn.Module):
+    def __init__(self, input_dim=186, hidden_dim=64, output_dim=2) -> None:
+        super(gateRegress, self).__init__()
+        # 定义神经网络层
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(p=0.1)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+        self.activation = nn.ELU()
+        self.gate = nn.Sigmoid()
+        
+    def forward(self, x):
+        # 重塑输入以适应全连接层
+        x = x.view(-1, x.size(-1))
+        # 第一层全连接+激活+dropout
+        x = self.activation(self.fc1(x))
+        x = self.dropout(x)
+        # 第二层全连接
+        x = self.fc2(x)
+        # 应用门控机制
+        x = self.gate(x)
+        return x
 
 class Regress2(nn.Module):
     def __init__(self) -> None:
