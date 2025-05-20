@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON
+import os
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Float, Text, JSON, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -54,11 +55,13 @@ class AnalysisResult(Base):
     confidence = Column(Float, nullable=False)
     processed_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)  # 兼容旧代码
-    
-    # 详细结果存储为JSON
+      # 详细结果存储为JSON
     facial_analysis = Column(JSON, nullable=True)
     voice_analysis = Column(JSON, nullable=True)
     body_language_analysis = Column(JSON, nullable=True)
+    
+    # 医生注释
+    doctor_notes = Column(Text, nullable=True)
     
     # 用户数据
     patient_age = Column(Integer, nullable=True)
@@ -89,9 +92,29 @@ class AnalyticsData(Base):
     male_detection_rate = Column(Float, nullable=True)
     female_detection_rate = Column(Float, nullable=True)
 
-# 创建所有表格函数
-def create_tables():
-    Base.metadata.create_all(bind=engine)
+def initialize_database():
+    """
+    智能初始化数据库:
+    1. 如果数据库文件不存在，创建所有表
+    2. 如果数据库存在但缺少某些表，只创建缺少的表
+    3. 如果所有表都存在，不做任何操作
+    """
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+    
+    # 获取所有模型定义的表名
+    metadata = Base.metadata
+    required_tables = metadata.tables.keys()
+    
+    # 检查是否需要创建表
+    missing_tables = set(required_tables) - set(existing_tables)
+    
+    if missing_tables:
+        # 只创建缺少的表
+        metadata.create_all(bind=engine, tables=[metadata.tables[table] for table in missing_tables])
+        print(f"Created missing tables: {missing_tables}")
+    else:
+        print("Database is up-to-date, no tables need to be created.")
 
 # 获取数据库会话
 def get_db():

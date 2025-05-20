@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录</title>
+    <link rel="stylesheet" href="/static/css/user-menu.css">
+    <script src="/static/js/main.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -80,22 +82,25 @@
     <div class="login-container">
         <h2>用户登录</h2>
         <div id="error-message" class="error-message"></div>
-        <div class="form-group">
-            <label for="username">用户名</label>
-            <input type="text" id="username" name="username" required>
-        </div>        <div class="form-group">
-            <label for="password">密码</label>
-            <input type="password" id="password" name="password" required>
-        </div>
-        <div class="form-group">
-            <label for="role">用户角色</label>
-            <select id="role" name="role">
-                <option value="patient">患者</option>
-                <option value="doctor">医生</option>
-                <option value="admin">管理员</option>
-            </select>
-        </div>
-        <button class="btn" onclick="login()">登录</button>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="role">用户角色</label>
+                <select id="role" name="role">
+                    <option value="patient">患者</option>
+                    <option value="doctor">医生</option>
+                    <option value="admin">管理员</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">登录</button>
+        </form>
         <div class="links">
             <a href="/register">注册新账户</a>
             <a href="/reset-password-request">忘记密码？</a>
@@ -126,16 +131,23 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
-                    // 存储令牌
+                if (response.ok) {                    // 存储令牌
                     localStorage.setItem('access_token', data.access_token);
+                    console.log('令牌已存储:', data.access_token);
                     
                     // 获取用户信息
-                    const userInfo = await fetch('/users/me', {
+                    const userInfoResponse = await fetch('/users/me', {
                         headers: {
                             'Authorization': `Bearer ${data.access_token}`
                         }
-                    }).then(res => res.json());
+                    });
+                    
+                    if (!userInfoResponse.ok) {
+                        throw new Error('获取用户信息失败');
+                    }
+                    
+                    const userInfo = await userInfoResponse.json();
+                    console.log('获取到用户信息:', userInfo);
                     
                     // 检查用户角色是否匹配当前选择
                     if (userInfo.role !== role) {
@@ -145,27 +157,41 @@
                         return;
                     }
                     
-                    // 存储用户角色
+                    // 存储用户角色和数据
                     localStorage.setItem('user_role', userInfo.role);
-                    
-                    // 根据角色重定向到不同页面
-                    if (role === 'admin') {
+                    localStorage.setItem('user_data', JSON.stringify(userInfo));                    // 根据角色重定向到不同页面
+                    if (userInfo.role === 'admin') {
                         window.location.href = '/admin';
-                    } else if (role === 'doctor') {
+                    } else if (userInfo.role === 'doctor') {
                         window.location.href = '/doctor';
                     } else {
-                        window.location.href = '/';
+                        window.location.href = '/patient';
                     }
                 } else {
+                    // 处理登录失败
                     errorMessage.textContent = data.detail || '登录失败，请检查用户名和密码';
                     errorMessage.style.display = 'block';
                 }
             } catch (error) {
-                errorMessage.textContent = '登录请求失败，请稍后再试';
+                console.error('登录过程中发生错误:', error);
+                errorMessage.textContent = '登录过程中发生错误，请稍后再试';
                 errorMessage.style.display = 'block';
-                console.error('登录错误:', error);
             }
         }
+
+        // 表单提交事件绑定
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    login();
+                });
+            }
+            
+            // 初始化检查认证状态
+            checkAuthStatus();
+        });
     </script>
 </body>
 </html>

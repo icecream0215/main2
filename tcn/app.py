@@ -1,15 +1,17 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status, Form
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from jose import JWTError, jwt
 import uvicorn
 import librosa
 import tempfile
 import os
+import traceback
 from moviepy.editor import VideoFileClip
 import subprocess
 import pandas as pd
@@ -17,12 +19,20 @@ import torchvision.transforms as transforms
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 
 # 导入模型
 from vgg import VGG
 from tcnmodel import Net
 # 导入数据库和认证模块
-from database import User, get_db, create_tables, AnalysisResult, AnalyticsData
+from database import (
+    User, 
+    get_db, 
+    initialize_database,  # 使用新的初始化函数
+    AnalysisResult, 
+    AnalyticsData, 
+    SessionLocal
+)
 # 导入数据分析模块
 from analytics import get_daily_analytics, get_trend_analysis
 from auth import (
@@ -33,12 +43,18 @@ from auth import (
     authenticate_user, 
     create_access_token, 
     get_current_active_user, 
+    get_current_admin_user,
+    get_current_doctor_user,
+    get_current_patient_user,
     get_user_by_email, 
+    get_user,  # 添加对get_user函数的导入
     create_user,
     create_password_reset_request,
     verify_reset_token,
     reset_password,
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    SECRET_KEY,  # 添加对SECRET_KEY的导入
+    ALGORITHM,   # 添加对ALGORITHM的导入 
     pwd_context
 )
 from sqlalchemy.orm import Session
@@ -60,9 +76,9 @@ model.load_state_dict(state_dict)
 model.to(device)
 model.eval()
 
-# OpenFace路径配置，使用相对路径提高可移植性
+# OpenFace路径配置，直接指定路径位置
 import os
-OPENFACE_DIR = os.environ.get("OPENFACE_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "OpenFace_2.2.0_win_x64"))
+OPENFACE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "OpenFace_2.2.0_win_x64")
 FEATURE_EXTRACTION_EXE = os.path.join(OPENFACE_DIR, "FeatureExtraction.exe")
 
 # 模型期望的输入尺寸（根据你的测试代码）
@@ -85,6 +101,21 @@ def pad_or_crop(array, target_length, axis=0):
     else:
         return array
 
+# 添加extract_and_process_features函数用于处理视频文件
+async def extract_and_process_features(video_path):
+    """从视频文件中提取视频和音频特征，并返回处理后的特征矩阵"""
+    try:
+        # 提取面部特征
+        face_features = extract_face_features(video_path)
+        
+        # 提取音频特征
+        audio_features = extract_audio_features(video_path)
+        
+        return face_features, audio_features
+    except Exception as e:
+        logger.error(f"特征提取失败: {str(e)}")
+        raise Exception(f"视频处理失败: {str(e)}")
+
 # 添加日志配置
 import logging
 
@@ -98,9 +129,71 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# -----------------------------
-# 2. 构建 FastAPI 接口
-app = FastAPI(title="PyTorch Model Inference API")
+# 定义生命周期事件处理器
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动时执行
+    logger.info("创建数据库表...")
+    initialize_database()
+    
+    # 检查数据库结构并在必要时进行迁移
+    try:
+        db = SessionLocal()
+        # 尝试查询带role字段的用户，如果失败表示需要迁移
+        db.query(User.role).limit(1).all()
+        logger.info("数据库结构验证通过")
+    except Exception as e:
+        logger.warning(f"数据库结构验证失败: {e}")
+        logger.info("尝试迁移数据库结构...")
+        try:
+            # 导入迁移模块
+            from .migrate_db import migrate_database
+            if migrate_database():
+                logger.info("数据库迁移成功")
+            else:
+                logger.error("数据库迁移失败")
+        except Exception as migration_error:
+            logger.error(f"执行迁移时出错: {migration_error}")
+    finally:
+        db.close()
+    
+    logger.info("数据库初始化完成")
+    yield
+    # 关闭时执行（如果有清理操作）
+    logger.info("应用程序关闭...")
+
+# 创建一个简单的日志记录器
+import logging
+logger = logging.getLogger(__name__)
+
+# 初始化FastAPI应用
+app = FastAPI(
+    title="PyTorch Model Inference API", 
+    lifespan=lifespan,
+    # 启用详细的请求日志记录
+    debug=True
+)
+
+# 添加一个中间件来记录认证相关的信息
+@app.middleware("http")
+async def log_requests(request, call_next):
+    # 记录请求信息
+    logger.info(f"请求: {request.method} {request.url.path}")
+    
+    # 如果有认证头，记录其存在
+    auth_header = request.headers.get("Authorization")
+    if auth_header:
+        # 只记录令牌的前10个字符，保护敏感信息
+        logger.info(f"认证头存在: {auth_header[:15]}...")
+    
+    # 处理请求
+    try:
+        response = await call_next(request)
+        logger.info(f"响应: {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"处理请求时出错: {str(e)}")
+        raise
 
 # 添加CORS支持
 app.add_middleware(
@@ -110,13 +203,6 @@ app.add_middleware(
     allow_methods=["*"],  # 允许所有方法
     allow_headers=["*"],  # 允许所有头
 )
-
-# 初始化数据库
-@app.on_event("startup")
-def startup_db_client():
-    logger.info("创建数据库表...")
-    create_tables()
-    logger.info("数据库初始化完成")
 
 # 用户注册
 @app.post("/register", response_model=dict)
@@ -206,26 +292,6 @@ def perform_password_reset(reset_data: PasswordReset, db: Session = Depends(get_
             detail="密码重置失败，令牌可能无效或已过期"
         )
 
-# 修改HTML表单
-
-@app.get("/", response_class=HTMLResponse)
-async def get_html():
-    with open(os.path.join(os.path.dirname(__file__), "templates", "index.html"), encoding="utf-8") as f:
-        return f.read()
-
-
-# 用户登录页面
-@app.get("/login", response_class=HTMLResponse)
-async def login_page():
-    with open(os.path.join(os.path.dirname(__file__), "templates", "login.html"), encoding="utf-8") as f:
-        return f.read()
-
-# 用户注册页面
-@app.get("/register", response_class=HTMLResponse)
-async def register_page():
-    with open(os.path.join(os.path.dirname(__file__), "templates", "register.html"), encoding="utf-8") as f:
-        return f.read()
-
 # 密码重置请求页面
 @app.get("/reset-password-request", response_class=HTMLResponse)
 async def reset_password_request_page():
@@ -240,14 +306,14 @@ async def reset_password_page():
 
 
 # 静态文件服务
-app.mount("/static", StaticFiles(directory="static"), name="static")
+static_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+os.makedirs(static_directory, exist_ok=True)  # 如果目录不存在则创建
+app.mount("/static", StaticFiles(directory=static_directory), name="static")
 
-# 首页路由
-@app.get("/", response_class=HTMLResponse)
+# 首页路由 - 重定向到登录页面
+@app.get("/", response_class=RedirectResponse)
 def read_root():
-    with open(os.path.join(os.path.dirname(__file__), "templates", "index.html"), "r", encoding="utf-8") as f:
-        content = f.read()
-    return content
+    return RedirectResponse(url="/login")
 
 # 登录页面路由
 @app.get("/login", response_class=HTMLResponse)
@@ -265,42 +331,127 @@ def register_page():
 
 # 管理员页面路由
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(current_user: User = Depends(get_current_active_user)):
-    # 检查用户是否为管理员
-    if current_user.role != "admin":
+async def admin_page(request: Request, current_user: User = Depends(get_current_admin_user)):
+    """
+    管理员页面路由处理函数。
+    使用get_current_admin_user依赖确保只有管理员可以访问。
+    """
+    try:
+        # 记录访问信息
+        logger.info(f"用户 {current_user.username} (角色: {current_user.role}) 访问管理员页面")
+        
+        # 读取管理员页面模板
+        with open(os.path.join(os.path.dirname(__file__), "templates", "admin.html"), "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        return content
+            
+    except Exception as e:
+        logger.error(f"获取管理员页面时出错: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有访问权限，仅管理员可访问"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="加载页面时发生错误"
         )
-    with open(os.path.join(os.path.dirname(__file__), "templates", "admin.html"), "r", encoding="utf-8") as f:
-        content = f.read()
-    return content
 
 # 医生页面路由
 @app.get("/doctor", response_class=HTMLResponse)
-async def doctor_page(current_user: User = Depends(get_current_active_user)):
-    # 检查用户是否为医生或管理员
-    if current_user.role not in ["doctor", "admin"]:
+async def doctor_page(request: Request, current_user: User = Depends(get_current_doctor_user)):
+    """
+    医生页面路由处理函数。
+    使用get_current_doctor_user依赖确保只有医生或管理员可以访问。
+    自动处理认证并返回医生页面。
+    """
+    try:
+        # 记录访问信息
+        logger.info(f"用户 {current_user.username} (角色: {current_user.role}) 访问医生页面")
+        
+        # 读取医生页面模板
+        with open(os.path.join(os.path.dirname(__file__), "templates", "doctor.html"), "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        return content
+            
+    except Exception as e:
+        logger.error(f"获取医生页面时出错: {str(e)}")
+        # 根据错误类型返回适当的错误响应
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有访问权限，仅医生可访问"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="加载页面时发生错误"
         )
-    with open(os.path.join(os.path.dirname(__file__), "templates", "doctor.html"), "r", encoding="utf-8") as f:
-        content = f.read()
-    return content
+
+# 添加POST方法处理doctor路由的表单认证
+@app.post("/doctor", response_class=HTMLResponse)
+async def doctor_page_post(auth_token: str = Form(...)):
+    try:
+        # 手动验证令牌并获取用户
+        db = SessionLocal()
+        try:
+            # 解码JWT令牌
+            payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            if not username:
+                raise HTTPException(status_code=401, detail="无效的认证凭据")
+                
+            # 获取用户信息    
+            user = get_user(db, username)
+            if not user:
+                raise HTTPException(status_code=401, detail="用户不存在")
+                
+            # 检查用户角色
+            if user.role not in ["doctor", "admin"]:
+                raise HTTPException(status_code=403, detail="没有访问权限")
+                
+            # 返回医生页面
+            with open(os.path.join(os.path.dirname(__file__), "templates", "doctor.html"), "r", encoding="utf-8") as f:
+                content = f.read()
+            return content
+                
+        except JWTError:
+            raise HTTPException(status_code=401, detail="无效的认证凭据")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"处理医生页面POST请求时出错: {e}")
+        # 返回登录页面
+        return RedirectResponse(url="/login", status_code=303)
 
 # 患者页面路由
 @app.get("/patient", response_class=HTMLResponse)
-async def patient_page(current_user: User = Depends(get_current_active_user)):
-    with open(os.path.join(os.path.dirname(__file__), "templates", "patient.html"), "r", encoding="utf-8") as f:
-        content = f.read()
-    return content
+async def patient_page(request: Request, current_user: User = Depends(get_current_patient_user)):
+    """
+    患者页面路由处理函数。
+    使用get_current_patient_user依赖确保只有患者或管理员可以访问。
+    """
+    try:
+        # 记录访问信息
+        logger.info(f"用户 {current_user.username} (角色: {current_user.role}) 访问患者页面")
+        
+        # 读取患者页面模板
+        with open(os.path.join(os.path.dirname(__file__), "templates", "patient.html"), "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        return content
+            
+    except Exception as e:
+        logger.error(f"获取患者页面时出错: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="加载页面时发生错误"
+        )
 
 
 # 视频特征提取函数 (使用OpenFace)
 def extract_face_features(video_path):
     # 运行OpenFace特征提取
     try:
+        print(f"开始提取面部特征，视频路径: {video_path}")
+        
         cmd = [
             FEATURE_EXTRACTION_EXE,
             "-f", video_path,
@@ -310,6 +461,7 @@ def extract_face_features(video_path):
             "-gaze"
         ]
         
+        print(f"执行OpenFace命令: {' '.join(cmd)}")
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
         
@@ -338,13 +490,27 @@ def extract_face_features(video_path):
 # 音频特征提取函数 (使用VGG)
 def extract_audio_features(video_path):
     try:
+        print(f"开始提取音频特征，视频路径: {video_path}")
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"视频文件不存在: {video_path}")
+        
+        print("加载视频文件...")
         video = VideoFileClip(video_path)
         
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
-            video.audio.write_audiofile(temp_audio.name, verbose=False, logger=None)
-            
-            # 使用librosa加载音频
-            y, sr = librosa.load(temp_audio.name, sr=None)
+        if video.audio is None:
+            print("警告: 视频没有音轨，使用空音频代替")
+            # 创建一个空的音频数组
+            import numpy as np
+            y = np.zeros(16000)  # 1秒的44.1kHz采样率
+            sr = 16000
+        else:
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
+                print(f"提取音频到临时文件: {temp_audio.name}")
+                video.audio.write_audiofile(temp_audio.name, verbose=False, logger=None)
+                
+                # 使用librosa加载音频
+                print("使用librosa加载音频...")
+                y, sr = librosa.load(temp_audio.name, sr=None)
             
             # 提取梅尔频谱特征
             mel_spec = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=160)  # 计算梅尔频谱
@@ -364,215 +530,14 @@ def extract_audio_features(video_path):
     except Exception as e:
         raise Exception(f"音频特征提取失败: {str(e)}")
 
-# 修改预测接口，使其需要用户登录并保存结果到数据库
-@app.post("/predict")
-async def predict(
-    video_file: UploadFile = File(...),
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    return await process_video_analysis(video_file, current_user, db)
-
-# 获取用户历史分析结果
-@app.get("/api/history", response_model=list)
-async def get_user_history(current_user = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    from database import AnalysisResult
-    
-    # 获取当前用户的所有分析记录
-    results = db.query(AnalysisResult).filter(AnalysisResult.user_id == current_user.id).order_by(AnalysisResult.created_at.desc()).all()
-    
-    history_list = []
-    for result in results:
-        history_list.append({
-            "id": result.id,
-            "filename": result.filename,
-            "predicted_class": result.predicted_class,
-            "probability_class0": result.probability_class0,
-            "probability_class1": result.probability_class1,
-            "created_at": result.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        })
-    
-    return history_list
-
-# 新增: 数据分析相关API接口
-class AnalyticsRequest(BaseModel):
-    time_range: str  # "last7", "last30", "last90", "last365"
-    user_id: Optional[int] = None  # None表示所有用户
-
-class AnalyticsResponse(BaseModel):
-    summary: Dict[str, Any]
-    detection_trend: List[Dict[str, Any]]
-    result_distribution: Dict[str, int]
-    age_distribution: Dict[str, float]
-    gender_distribution: Dict[str, float]
-
-@app.get("/api/analytics/summary", response_model=AnalyticsResponse)
-async def get_analytics_summary(
-    time_range: str = "last30", 
-    user_filter: str = "all",
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """获取数据分析摘要信息"""
-    
-    # 根据时间范围计算开始日期
-    today = datetime.now()
-    if time_range == "last7":
-        start_date = today - timedelta(days=7)
-    elif time_range == "last30":
-        start_date = today - timedelta(days=30)
-    elif time_range == "last90":
-        start_date = today - timedelta(days=90)
-    elif time_range == "last365":
-        start_date = today - timedelta(days=365)
-    else:
-        start_date = today - timedelta(days=30)  # 默认30天
-    
-    # 根据用户筛选条件构建查询
-    query = db.query(AnalysisResult).filter(AnalysisResult.processed_at >= start_date)
-    if user_filter == "current":
-        query = query.filter(AnalysisResult.user_id == current_user.id)
-    
-    # 获取所有结果
-    results = query.all()
-    
-    # 计算摘要数据
-    total_analyses = len(results)
-    depression_count = sum(1 for r in results if r.depression_probability > 0.5)
-    depression_rate = depression_count / total_analyses if total_analyses > 0 else 0
-    avg_confidence = sum(r.confidence for r in results) / total_analyses if total_analyses > 0 else 0
-    
-    # 上一时间段的数据用于比较
-    prev_start_date = start_date - (today - start_date)
-    prev_query = db.query(AnalysisResult).filter(
-        AnalysisResult.processed_at >= prev_start_date,
-        AnalysisResult.processed_at < start_date
-    )
-    if user_filter == "current":
-        prev_query = prev_query.filter(AnalysisResult.user_id == current_user.id)
-    
-    prev_results = prev_query.all()
-    prev_total = len(prev_results)
-    prev_depression_count = sum(1 for r in prev_results if r.depression_probability > 0.5)
-    prev_depression_rate = prev_depression_count / prev_total if prev_total > 0 else 0
-    
-    # 计算趋势变化
-    total_change = ((total_analyses - prev_total) / prev_total * 100) if prev_total > 0 else 0
-    detection_change = ((depression_rate - prev_depression_rate) / prev_depression_rate * 100) if prev_depression_rate > 0 else 0
-    
-    # 按月份聚合的检测结果趋势
-    monthly_data = {}
-    for result in results:
-        month = result.processed_at.strftime("%Y-%m")
-        if month not in monthly_data:
-            monthly_data[month] = {"normal": 0, "mild": 0, "moderate": 0, "severe": 0}
-        
-        if result.depression_probability <= 0.3:
-            monthly_data[month]["normal"] += 1
-        elif result.depression_probability <= 0.6:
-            monthly_data[month]["mild"] += 1
-        elif result.depression_probability <= 0.8:
-            monthly_data[month]["moderate"] += 1
-        else:
-            monthly_data[month]["severe"] += 1
-    
-    # 按结果类型的分布
-    result_distribution = {
-        "normal": sum(1 for r in results if r.depression_probability <= 0.3),
-        "mild": sum(1 for r in results if 0.3 < r.depression_probability <= 0.6),
-        "moderate": sum(1 for r in results if 0.6 < r.depression_probability <= 0.8),
-        "severe": sum(1 for r in results if r.depression_probability > 0.8)
-    }
-    
-    # 按年龄段的检出率
-    age_groups = {
-        "18-24岁": [],
-        "25-34岁": [],
-        "35-44岁": [],
-        "45-54岁": [],
-        "55-64岁": [],
-        "65岁以上": []
-    }
-    
-    for result in results:
-        if not result.patient_age:
-            continue
-            
-        age = result.patient_age
-        group = None
-        if 18 <= age <= 24:
-            group = "18-24岁"
-        elif 25 <= age <= 34:
-            group = "25-34岁"
-        elif 35 <= age <= 44:
-            group = "35-44岁"
-        elif 45 <= age <= 54:
-            group = "45-54岁"
-        elif 55 <= age <= 64:
-            group = "55-64岁"
-        elif age >= 65:
-            group = "65岁以上"
-            
-        if group:
-            age_groups[group].append(result.depression_probability > 0.5)
-    
-    age_distribution = {}
-    for group, detections in age_groups.items():
-        if detections:
-            age_distribution[group] = sum(detections) / len(detections) * 100
-        else:
-            age_distribution[group] = 0
-    
-    # 按性别的检出率
-    gender_groups = {"男性": [], "女性": []}
-    for result in results:
-        if not result.patient_gender:
-            continue
-            
-        gender = result.patient_gender
-        if gender in gender_groups:
-            gender_groups[gender].append(result.depression_probability > 0.5)
-    
-    gender_distribution = {}
-    for gender, detections in gender_groups.items():
-        if detections:
-            gender_distribution[gender] = sum(detections) / len(detections) * 100
-        else:
-            gender_distribution[gender] = 0
-    
-    response = {
-        "summary": {
-            "total_analyses": total_analyses,
-            "depression_rate": depression_rate * 100,  # 转为百分比
-            "avg_confidence": avg_confidence * 100,  # 转为百分比
-            "avg_processing_time": 26,  # 假设的值，实际应从分析结果中计算
-            "total_change": total_change,
-            "detection_change": detection_change
-        },
-        "detection_trend": [
-            {
-                "month": month,
-                "normal": data["normal"],
-                "mild": data["mild"],
-                "moderate": data["moderate"],
-                "severe": data["severe"]
-            } for month, data in monthly_data.items()
-        ],
-        "result_distribution": result_distribution,
-        "age_distribution": age_distribution,
-        "gender_distribution": gender_distribution
-    }
-    
-    return response
-
-# 添加通用视频处理函数，避免重复代码
-async def process_video_analysis(file, current_user, db: Session):
+# 添加视频处理分析函数
+async def process_video_analysis(file, current_user, db: Session, age: Optional[int] = None, gender: Optional[str] = None):
     """处理视频分析，返回分析结果"""
     # 验证文件格式
-    if not file.filename.lower().endswith('.mp4'):
+    if not file.filename.lower().endswith(('.mp4', '.avi', '.mov')):
         raise HTTPException(
             status_code=400,
-            detail="只支持MP4格式的视频文件"
+            detail="只支持MP4、AVI或MOV格式的视频文件"
         )
     
     try:
@@ -620,7 +585,7 @@ async def process_video_analysis(file, current_user, db: Session):
             predicted_idx = int(np.argmax(percentages))
             label_map = {0: "非抑郁", 1: "抑郁"}
             
-            # 计算抑郁概率和置信度
+            # 计算抎郁概率和置信度
             depression_probability = float(probs[1])
             non_depression_probability = float(probs[0])
             confidence = float(max(probs))
@@ -650,8 +615,8 @@ async def process_video_analysis(file, current_user, db: Session):
                 facial_analysis={"expression": "较少的积极情绪表达"},
                 voice_analysis={"tone": "语调平缓，能量低"},
                 body_language_analysis={"movement": "动作减少，姿势略显紧张"},
-                patient_age=35,
-                patient_gender="男性",
+                patient_age=age,
+                patient_gender=gender,
                 processed_at=now,
                 created_at=now
             )
@@ -674,7 +639,6 @@ async def process_video_analysis(file, current_user, db: Session):
             }
         except Exception as e:
             # 添加更详细的错误日志
-            import traceback
             error_details = traceback.format_exc()
             print(f"视频处理错误: {error_details}")
             raise HTTPException(
@@ -694,288 +658,657 @@ async def process_video_analysis(file, current_user, db: Session):
             detail=f"上传处理失败: {str(e)}"
         )
 
-# 修复analyze-video端点，与现有predict函数一致
-
-@app.post("/analyze-video")
-async def analyze_video(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user),
+# 修改预测接口，使其需要用户登录并保存结果到数据库
+@app.post("/predict")
+async def predict(
+    video_file: UploadFile = File(...),
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    return await process_video_analysis(file, current_user, db)
+    return await process_video_analysis(video_file, current_user, db)
 
-# 用户管理API - 获取所有用户列表（仅管理员可用）
-@app.get("/api/users", response_model=List[dict])
-async def get_users(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    # 检查用户是否为管理员
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有访问权限，仅管理员可访问"
-        )
-    
-    users = db.query(User).all()
-    result = []
-    for user in users:
-        result.append({
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "is_active": user.is_active,
-            "created_at": user.created_at.isoformat() if user.created_at else None
-        })
-    return result
-
-# 更新用户信息（仅管理员可用）
-@app.put("/api/users/{user_id}", response_model=dict)
-async def update_user(user_id: int, user_data: dict, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    # 检查用户是否为管理员
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有访问权限，仅管理员可访问"
-        )
-    
-    # 查找用户
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在"
-        )
-    
-    # 更新用户信息
-    if "username" in user_data:
-        # 检查用户名是否已存在
-        existing_user = db.query(User).filter(User.username == user_data["username"], User.id != user_id).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="用户名已被使用"
-            )
-        user.username = user_data["username"]
-    
-    if "email" in user_data:
-        # 检查邮箱是否已存在
-        existing_user = db.query(User).filter(User.email == user_data["email"], User.id != user_id).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="邮箱已被使用"
-            )
-        user.email = user_data["email"]
-    
-    if "role" in user_data and user_data["role"] in ["admin", "doctor", "patient"]:
-        user.role = user_data["role"]
-    
-    if "is_active" in user_data:
-        user.is_active = user_data["is_active"]
-    
-    # 如果提供了密码，重置密码
-    if "password" in user_data and user_data["password"]:
-        user.hashed_password = pwd_context.hash(user_data["password"])
-    
-    db.commit()
-    return {"message": "用户信息更新成功"}
-
-# 删除用户（仅管理员可用）
-@app.delete("/api/users/{user_id}", response_model=dict)
-async def delete_user(user_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    # 检查用户是否为管理员
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有访问权限，仅管理员可访问"
-        )
-    
-    # 防止管理员删除自己
-    if user_id == current_user.id:
+# 增强版预测接口，允许用户提供更多信息
+@app.post("/predict/enhanced")
+async def predict_enhanced(
+    video_file: UploadFile = File(...),
+    age: Optional[int] = Form(None),
+    gender: Optional[str] = Form(None),
+    additional_info: Optional[str] = Form(None),
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # 验证性别输入
+    if gender and gender not in ["男", "女", "其他", "未知"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="不能删除当前登录的管理员账户"
+            detail="性别只能是'男'、'女'、'其他'或'未知'"
         )
     
-    # 查找并删除用户
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
+    # 验证年龄输入
+    if age is not None and (age < 0 or age > 120):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="年龄必须在0到120之间"
         )
     
-    db.delete(user)
-    db.commit()
-    return {"message": "用户删除成功"}
-
-# 获取所有患者的分析结果（管理员和医生可看所有，患者只能看自己的）
-@app.get("/api/analysis_results", response_model=List[dict])
-async def get_analysis_results(
-    user_id: Optional[int] = None,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    # 根据角色确定查询范围
-    if current_user.role == "patient":
-        # 患者只能查看自己的分析结果
-        results = db.query(AnalysisResult).filter(AnalysisResult.user_id == current_user.id).all()
-    elif current_user.role in ["doctor", "admin"]:
-        # 医生和管理员可以查看所有分析结果，也可以按用户ID过滤
-        if user_id:
-            results = db.query(AnalysisResult).filter(AnalysisResult.user_id == user_id).all()
-        else:
-            results = db.query(AnalysisResult).all()
+    # 处理视频并分析
+    result = await process_video_analysis(video_file, current_user, db, age, gender)
     
-    # 构造返回结果
-    result_list = []
+    # 如果提供了额外信息，将其保存到数据库
+    if additional_info and result.get("result_id"):
+        try:
+            analysis_result = db.query(AnalysisResult).filter(
+                AnalysisResult.id == result["result_id"]
+            ).first()
+            
+            if analysis_result:
+                # 将额外信息保存到body_language_analysis字段中
+                if not analysis_result.body_language_analysis:
+                    analysis_result.body_language_analysis = {}
+                
+                body_data = analysis_result.body_language_analysis
+                if isinstance(body_data, str):
+                    import json
+                    body_data = json.loads(body_data)
+                
+                body_data["additional_info"] = additional_info
+                analysis_result.body_language_analysis = body_data
+                
+                db.commit()
+        except Exception as e:
+            logger.error(f"保存额外信息失败: {str(e)}")
+            # 不抛出错误，继续返回结果
+    
+    return result
+
+# 获取用户历史分析结果
+@app.get("/api/history", response_model=list)
+async def get_user_history(current_user = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    from database import AnalysisResult
+    # 获取当前用户的所有分析记录
+    results = db.query(AnalysisResult).filter(AnalysisResult.user_id == current_user.id).order_by(AnalysisResult.created_at.desc()).all()
+    
+    history_list = []
     for result in results:
-        result_list.append({
+        history_list.append({
             "id": result.id,
-            "user_id": result.user_id,
             "filename": result.filename,
             "result_type": result.result_type,
+            "predicted_class": result.predicted_class,
             "non_depression_probability": result.non_depression_probability,
             "depression_probability": result.depression_probability,
+            "probability_class0": result.probability_class0, # 保留兼容旧代码
+            "probability_class1": result.probability_class1, # 保留兼容旧代码
             "confidence": result.confidence,
-            "processed_at": result.processed_at.isoformat() if result.processed_at else None,
-            "patient_age": result.patient_age,
-            "patient_gender": result.patient_gender,
-            "facial_analysis": result.facial_analysis,
-            "voice_analysis": result.voice_analysis,
-            "body_language_analysis": result.body_language_analysis
+            "created_at": result.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
-    
-    return result_list
+    return history_list
 
-# 获取特定患者的分析结果详情
-@app.get("/api/analysis_results/{result_id}", response_model=dict)
-async def get_analysis_result_detail(
-    result_id: int,
-    current_user: User = Depends(get_current_active_user),
+# 获取分析结果详情
+@app.get("/api/analysis/{analysis_id}", response_model=dict)
+async def get_analysis_detail(
+    analysis_id: int, 
+    current_user = Depends(get_current_active_user), 
     db: Session = Depends(get_db)
 ):
-    # 查询分析结果
-    result = db.query(AnalysisResult).filter(AnalysisResult.id == result_id).first()
+    from database import AnalysisResult
+    
+    # 获取特定分析记录
+    result = db.query(AnalysisResult).filter(
+        AnalysisResult.id == analysis_id
+    ).first()
+    
+    # 检查结果是否存在
     if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="分析结果不存在"
         )
     
-    # 检查访问权限
-    if current_user.role == "patient" and result.user_id != current_user.id:
+    # 检查是否有权限访问（自己的分析结果或医生/管理员可以查看所有人的）
+    if result.user_id != current_user.id and current_user.role not in ["doctor", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有权限查看其他患者的分析结果"
+            detail="您没有权限查看此分析结果"
         )
+      # 获取用户信息
+    user = db.query(User).filter(User.id == result.user_id).first()
     
-    # 返回详细结果
-    return {
+    # 构建详细结果对象
+    detail = {
         "id": result.id,
         "user_id": result.user_id,
+        "username": user.username if user else "未知用户",
         "filename": result.filename,
         "result_type": result.result_type,
-        "non_depression_probability": result.non_depression_probability,
+        "predicted_class": result.predicted_class,
         "depression_probability": result.depression_probability,
+        "non_depression_probability": result.non_depression_probability,
         "confidence": result.confidence,
-        "processed_at": result.processed_at.isoformat() if result.processed_at else None,
+        "created_at": result.created_at.strftime("%Y-%m-%d %H:%M:%S"),
         "patient_age": result.patient_age,
         "patient_gender": result.patient_gender,
+        "doctor_notes": result.doctor_notes,
         "facial_analysis": result.facial_analysis,
         "voice_analysis": result.voice_analysis,
         "body_language_analysis": result.body_language_analysis
     }
+    
+    return detail
 
-# 医生为患者上传视频
-@app.post("/api/upload_for_patient", response_model=dict)
-async def upload_video_for_patient(
-    patient_id: int = Form(...),
-    patient_age: Optional[int] = Form(None),
-    patient_gender: Optional[str] = Form(None),
-    video: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user),
+# 生成HTML分析报告
+@app.get("/api/analysis/{analysis_id}/report", response_class=HTMLResponse)
+async def generate_analysis_report(
+    analysis_id: int,
+    current_user = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    # 验证上传者是医生或管理员
-    if current_user.role not in ["doctor", "admin"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="没有权限，仅医生和管理员可为患者上传视频"
-        )
+    """生成分析结果的HTML报告，可以在浏览器中查看或打印"""
+    from database import AnalysisResult
     
-    # 验证患者存在
-    patient = db.query(User).filter(User.id == patient_id, User.role == "patient").first()
-    if not patient:
+    # 获取分析结果
+    result = db.query(AnalysisResult).filter(AnalysisResult.id == analysis_id).first()
+    
+    # 检查结果是否存在
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="患者不存在或ID无效"
+            detail="分析结果不存在"
         )
     
-    # 检查文件类型
-    if not video.filename.lower().endswith(('.mp4', '.avi', '.mov')):
+    # 检查是否有权限访问（自己的分析结果或医生/管理员可以查看所有人的）
+    if result.user_id != current_user.id and current_user.role not in ["doctor", "admin"]:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="仅支持MP4、AVI或MOV格式的视频文件"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您没有权限查看此分析结果"
         )
     
     try:
-        # 为视频处理创建临时文件，保存上传的视频
-        video_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{video.filename}"
-        video_path = os.path.join(tempfile.gettempdir(), video_filename)
+        # 获取用户信息
+        user = db.query(User).filter(User.id == result.user_id).first()
         
-        # 保存上传的视频文件
-        with open(video_path, "wb") as f:
-            f.write(await video.read())
+        # 格式化概率为百分比
+        depression_pct = f"{result.depression_probability*100:.1f}%"
+        non_depression_pct = f"{result.non_depression_probability*100:.1f}%"
+        confidence_pct = f"{result.confidence*100:.1f}%"
         
-        # 调用视频处理流程
-        logger.info(f"开始处理视频: {video_filename}")
+        # 获取面部表情分析
+        facial_analysis = ""
+        if result.facial_analysis:
+            facial_data = result.facial_analysis
+            if isinstance(facial_data, str):
+                import json
+                facial_data = json.loads(facial_data)
+                
+            if isinstance(facial_data, dict) and "expression" in facial_data:
+                facial_analysis = facial_data['expression']
         
-        # 【这里应该有视频处理和分析的代码，与普通上传流程相同】
-        # 为简化示例，假设我们调用一个predict_video函数
+        # 获取语音分析
+        voice_analysis = ""
+        if result.voice_analysis:
+            voice_data = result.voice_analysis
+            if isinstance(voice_data, str):
+                import json
+                voice_data = json.loads(voice_data)
+                
+            if isinstance(voice_data, dict) and "tone" in voice_data:
+                voice_analysis = voice_data['tone']
         
-        # 将分析结果保存到数据库，关联到患者ID
-        analysis_result = AnalysisResult(
-            user_id=patient_id,
-            filename=video_filename,
-            result_type="待分析",  # 初始状态
-            non_depression_probability=0.0,
-            depression_probability=0.0,
-            confidence=0.0,
-            patient_age=patient_age,
-            patient_gender=patient_gender
-        )
+        # 获取肢体语言分析
+        body_analysis = ""
+        if result.body_language_analysis:
+            body_data = result.body_language_analysis
+            if isinstance(body_data, str):
+                import json
+                body_data = json.loads(body_data)
+                
+            if isinstance(body_data, dict) and "movement" in body_data:
+                body_analysis = body_data['movement']
+                
+            # 提取额外信息
+            additional_info = ""
+            if isinstance(body_data, dict) and "additional_info" in body_data:
+                additional_info = body_data['additional_info']
         
-        db.add(analysis_result)
-        db.commit()
-        db.refresh(analysis_result)
+        # 构建HTML报告
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>抑郁症检测分析报告 - {result.id}</title>
+            <style>
+                body {{
+                    font-family: 'Arial', 'Microsoft YaHei', sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    color: #333;
+                    background-color: #f9f9f9;
+                }}
+                .container {{
+                    max-width: 800px;
+                    margin: 0 auto;
+                    background-color: white;
+                    padding: 30px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                    border-radius: 5px;
+                }}
+                h1 {{
+                    color: #2c3e50;
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #3498db;
+                    padding-bottom: 10px;
+                }}
+                h2 {{
+                    color: #3498db;
+                    margin-top: 25px;
+                    border-left: 4px solid #3498db;
+                    padding-left: 10px;
+                }}
+                .info-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                }}
+                .info-table th {{
+                    background-color: #f2f2f2;
+                    text-align: left;
+                    padding: 12px 15px;
+                    border: 1px solid #ddd;
+                    width: 30%;
+                }}
+                .info-table td {{
+                    padding: 12px 15px;
+                    border: 1px solid #ddd;
+                }}
+                .result-box {{
+                    background-color: #f8f9fa;
+                    border-left: 4px solid #3498db;
+                    padding: 15px;
+                    margin: 15px 0;
+                }}
+                .danger {{
+                    color: #e74c3c;
+                }}
+                .warning {{
+                    color: #f39c12;
+                }}
+                .success {{
+                    color: #2ecc71;
+                }}
+                .notes {{
+                    background-color: #fffbf0;
+                    border: 1px dashed #ffd700;
+                    padding: 15px;
+                    margin-top: 20px;
+                    border-radius: 5px;
+                }}
+                .progress-container {{
+                    width: 100%;
+                    background-color: #e0e0e0;
+                    margin: 10px 0;
+                    border-radius: 5px;
+                }}
+                .progress-bar {{
+                    height: 24px;
+                    border-radius: 5px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                }}
+                .depression-bar {{
+                    background-color: #e74c3c;
+                }}
+                .non-depression-bar {{
+                    background-color: #2ecc71;
+                }}
+                @media print {{
+                    body {{
+                        background-color: white;
+                    }}
+                    .container {{
+                        box-shadow: none;
+                        padding: 0;
+                    }}
+                    .no-print {{
+                        display: none;
+                    }}
+                }}
+                .print-button {{
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    margin-top: 20px;
+                }}
+                .print-button:hover {{
+                    background-color: #2980b9;
+                }}
+                .logo {{
+                    text-align: center;
+                    margin-bottom: 20px;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #7f8c8d;
+                    font-size: 14px;
+                    border-top: 1px solid #eee;
+                    padding-top: 20px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo">
+                    <h1>抑郁症检测分析报告</h1>
+                </div>
+                
+                <h2>基本信息</h2>
+                <table class="info-table">
+                    <tr>
+                        <th>分析ID</th>
+                        <td>{result.id}</td>
+                    </tr>
+                    <tr>
+                        <th>用户名</th>
+                        <td>{user.username if user else "未知"}</td>
+                    </tr>
+                    <tr>
+                        <th>分析文件</th>
+                        <td>{result.filename}</td>
+                    </tr>
+                    <tr>
+                        <th>分析时间</th>
+                        <td>{result.created_at.strftime("%Y-%m-%d %H:%M:%S")}</td>
+                    </tr>
+                    <tr>
+                        <th>年龄</th>
+                        <td>{result.patient_age if result.patient_age else "未提供"}</td>
+                    </tr>
+                    <tr>
+                        <th>性别</th>
+                        <td>{result.patient_gender if result.patient_gender else "未提供"}</td>
+                    </tr>
+                </table>
+                
+                <h2>分析结果</h2>
+                <div class="result-box">
+                    <p><strong>检测结果:</strong> <span class="{
+                        'danger' if result.result_type in ['重度抑郁', '中度抑郁'] else 
+                        'warning' if result.result_type == '轻度抑郁' else 
+                        'success'
+                    }">{result.result_type}</span></p>
+                    <p><strong>检测类别:</strong> {result.predicted_class}</p>
+                    
+                    <p><strong>抑郁概率:</strong></p>
+                    <div class="progress-container">
+                        <div class="progress-bar depression-bar" style="width: {depression_pct}">{depression_pct}</div>
+                    </div>
+                    
+                    <p><strong>非抑郁概率:</strong></p>
+                    <div class="progress-container">
+                        <div class="progress-bar non-depression-bar" style="width: {non_depression_pct}">{non_depression_pct}</div>
+                    </div>
+                    
+                    <p><strong>置信度:</strong> {confidence_pct}</p>
+                </div>
+                
+                <h2>详细分析</h2>
+                <div class="result-box">
+                    {f"<p><strong>面部表情分析:</strong> {facial_analysis}</p>" if facial_analysis else ""}
+                    {f"<p><strong>语音分析:</strong> {voice_analysis}</p>" if voice_analysis else ""}
+                    {f"<p><strong>肢体语言分析:</strong> {body_analysis}</p>" if body_analysis else ""}
+                </div>
+                
+                {f'''
+                <h2>医生专业注释</h2>
+                <div class="notes">
+                    <p>{result.doctor_notes}</p>
+                </div>
+                ''' if result.doctor_notes else ""}
+                
+                <div class="no-print" style="text-align: center;">
+                    <button class="print-button" onclick="window.print();">打印报告</button>
+                </div>
+                
+                <div class="footer">
+                    <p>此报告仅供参考，不构成医疗建议。如有疑问，请咨询专业医师。</p>
+                    <p>报告生成日期: {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}</p>
+                </div>
+            </div>
+            
+            <script>
+                // 页面加载时自动根据结果类型设置颜色
+                document.addEventListener('DOMContentLoaded', function() 
+            </script>
+        </body>
+        </html>
+        """
         
-        # 返回成功消息和分析结果ID
-        return {
-            "message": "视频上传成功，已为患者创建分析任务",
-            "analysis_id": analysis_result.id,
-            "patient_id": patient_id,
-            "patient_username": patient.username
-        }
+        return HTMLResponse(content=html_content)
         
     except Exception as e:
-        logger.error(f"处理视频时出错: {str(e)}")
-        # 如果出错，确保清理临时文件
-        if os.path.exists(video_path):
-            os.remove(video_path)
-        
+        logger.error(f"生成HTML报告失败: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"处理视频时出错: {str(e)}"
+            detail=f"生成报告失败: {str(e)}"
+        )
+        
+    except Exception as e:
+        logger.error(f"生成PDF报告失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"生成报告失败: {str(e)}"
         )
 
-# 添加服务启动代码
+# 系统统计数据API
+@app.get("/api/admin/stats", response_model=dict)
+async def get_system_stats(
+    current_user = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """获取系统统计数据，包括用户数量和分析结果数量"""
+    try:
+        # 用户统计
+        total_users = db.query(func.count(User.id)).scalar()
+        active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar()
+        patient_count = db.query(func.count(User.id)).filter(User.role == "patient").scalar()
+        doctor_count = db.query(func.count(User.id)).filter(User.role == "doctor").scalar()
+        admin_count = db.query(func.count(User.id)).filter(User.role == "admin").scalar()
+        
+        # 分析结果统计
+        total_analyses = db.query(func.count(AnalysisResult.id)).scalar()
+        
+        # 结果类型统计
+        normal_count = db.query(func.count(AnalysisResult.id)).filter(
+            AnalysisResult.result_type == "正常"
+        ).scalar()
+        
+        mild_count = db.query(func.count(AnalysisResult.id)).filter(
+            AnalysisResult.result_type == "轻度抑郁"
+        ).scalar()
+        
+        moderate_count = db.query(func.count(AnalysisResult.id)).filter(
+            AnalysisResult.result_type == "中度抑郁"
+        ).scalar()
+        
+        severe_count = db.query(func.count(AnalysisResult.id)).filter(
+            AnalysisResult.result_type == "重度抑郁"
+        ).scalar()
+        
+        # 计算检出率
+        detection_rate = 0
+        if total_analyses > 0:
+            depression_detected = mild_count + moderate_count + severe_count
+            detection_rate = depression_detected / total_analyses
+        
+        # 最近分析
+        recent_analyses = db.query(AnalysisResult).order_by(
+            AnalysisResult.created_at.desc()
+        ).limit(5).all()
+        
+        recent_list = []
+        for analysis in recent_analyses:
+            user = db.query(User).filter(User.id == analysis.user_id).first()
+            recent_list.append({
+                "id": analysis.id,
+                "username": user.username if user else "未知",
+                "result_type": analysis.result_type,
+                "created_at": analysis.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            })
+        
+        return {
+            "user_stats": {
+                "total": total_users,
+                "active": active_users,
+                "patients": patient_count,
+                "doctors": doctor_count,
+                "admins": admin_count
+            },
+            "analysis_stats": {
+                "total": total_analyses,
+                "normal": normal_count,
+                "mild": mild_count,
+                "moderate": moderate_count,
+                "severe": severe_count,
+                "detection_rate": detection_rate
+            },
+            "recent_analyses": recent_list
+        }
+    
+    except Exception as e:
+        logger.error(f"获取系统统计数据失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取统计数据失败: {str(e)}"
+        )
+
+# 删除分析结果
+@app.delete("/api/analysis/{analysis_id}", response_model=dict)
+async def delete_analysis(
+    analysis_id: int,
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """删除分析结果（只能删除自己的结果，管理员可以删除任何结果）"""
+    from database import AnalysisResult
+    
+    # 获取分析结果
+    result = db.query(AnalysisResult).filter(AnalysisResult.id == analysis_id).first()
+    
+    # 检查结果是否存在
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="分析结果不存在"
+        )
+    
+    # 检查是否有权限删除（只能删除自己的分析结果，管理员可以删除任何结果）
+    if result.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您没有权限删除此分析结果"
+        )
+    
+    try:
+        # 删除结果
+        db.delete(result)
+        db.commit()
+        
+        return {
+            "message": "分析结果已成功删除",
+            "id": analysis_id
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除分析结果失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"删除分析结果失败: {str(e)}"
+        )
+
+# 更新用户个人资料
+@app.put("/api/users/profile", response_model=dict)
+async def update_user_profile(
+    current_password: str = Form(...),
+    new_password: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    current_user = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """更新用户个人资料，包括密码和邮箱"""
+    try:
+        # 验证当前密码
+        if not pwd_context.verify(current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="当前密码不正确"
+            )
+        
+        # 更新密码
+        if new_password:
+            if len(new_password) < 6:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="新密码长度不能少于6个字符"
+                )
+            
+            current_user.hashed_password = pwd_context.hash(new_password)
+        
+        # 更新邮箱
+        if email:
+            # 检查邮箱格式
+            if "@" not in email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="邮箱格式不正确"
+                )
+            
+            # 检查邮箱是否已被其他用户使用
+            existing_user = db.query(User).filter(
+                User.email == email, 
+                User.id != current_user.id
+            ).first()
+            
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="此邮箱已被其他用户使用"
+                )
+            
+            current_user.email = email
+        
+        # 保存更改
+        db.commit()
+        
+        return {
+            "message": "个人资料更新成功",
+            "username": current_user.username,
+            "email": current_user.email
+        }
+    except HTTPException:
+        # 重新抛出HTTP异常
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新用户个人资料失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"更新个人资料失败: {str(e)}"
+        )
+
+# 启动FastAPI应用
 if __name__ == "__main__":
-    # 设置服务启动参数
-    host = "0.0.0.0"  # 监听所有网络接口
-    port = 8000       # 使用8000端口
-    
-    print(f"启动服务器于 http://{host}:{port}")
-    print(f"可以通过访问 http://localhost:{port} 访问服务")
-    
-    # 使用已经导入的uvicorn模块启动FastAPI应用
-    uvicorn.run(app, host=host, port=port)
+    print("正在启动抑郁症检测系统...")
+    print("请在浏览器中访问: http://127.0.0.1:8000")
+    print("按Ctrl+C停止服务")
+    import uvicorn
+    # 使用uvicorn启动应用，指定当前模块中的app对象
+    uvicorn.run(app, host="127.0.0.1", port=8000)

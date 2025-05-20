@@ -6,9 +6,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>医生工作站 - 抑郁症检测系统</title>
     <!-- 添加Chart.js库用于数据可视化 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>    
     <!-- 添加Font Awesome图标库 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">    
+    <!-- 添加自定义用户菜单样式 -->
+    <link rel="stylesheet" href="/static/css/user-menu.css">
+    <!-- 添加主JS文件 -->
+    <script src="/static/js/main.js"></script>
+    <!-- 添加页面认证检查脚本 -->    <script>
+        // 页面加载时立即检查认证状态
+        document.addEventListener('DOMContentLoaded', function() {
+            async function checkAuth() {
+                try {
+                    const token = localStorage.getItem('access_token');
+                    if (!token) {
+                        throw new Error('未登录');
+                    }
+                    
+                    // 设置拦截器为所有请求添加认证头
+                    const originalFetch = window.fetch;
+                    window.fetch = function() {
+                        const args = Array.prototype.slice.call(arguments);
+                        if (args[1] === undefined) {
+                            args[1] = {};
+                        }
+                        if (args[1].headers === undefined) {
+                            args[1].headers = {};
+                        }
+                        args[1].headers['Authorization'] = `Bearer ${token}`;
+                        return originalFetch.apply(this, args);
+                    };
+
+                    // 验证令牌并检查用户权限
+                    const response = await fetch('/users/me');
+                    if (!response.ok) {
+                        throw new Error('认证失败');
+                    }
+                    
+                    const user = await response.json();
+                    if (user.role !== 'doctor' && user.role !== 'admin') {
+                        throw new Error('权限不足');
+                    }
+                    
+                    console.log('认证成功:', user);
+                    // 存储用户信息
+                    localStorage.setItem('user_data', JSON.stringify(user));
+                    
+                } catch (error) {
+                    console.error('认证失败:', error);
+                    // 清除认证信息
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('user_role');
+                    localStorage.removeItem('user_data');
+                    // 重定向到登录页面
+                    window.location.href = '/login';
+                }
+            }
+            
+            // 执行认证检查
+            checkAuth();
+        });
+    </script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -566,596 +624,373 @@
         </div>
     </div>
 
+    <script src="/static/js/main.js"></script>
     <script>
-        // 当文档加载完成时执行
+        // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
-            // 获取用户令牌
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = '/login';
-                return;
-            }
+            console.log('医生页面已加载，正在初始化...');
+            // 检查用户认证状态
+            checkAuthStatus();
             
-            // 初始化加载数据
-            loadDashboardData();
-            loadPatients();
-            loadAllAnalysisResults();
-            loadUserProfile();
+            // 初始化页面特定功能
+            setupDoctorPageFunctions();
             
-            // 文件上传处理
-            const fileInput = document.getElementById('videoFile');
-            fileInput.addEventListener('change', showFileInfo);
-            
-            // 表单提交处理
-            document.getElementById('uploadForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                uploadVideo();
-            });
-            
-            document.getElementById('profileForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                updateProfile();
-            });
-            
-            // 患者过滤下拉框变化时重新加载分析结果
-            document.getElementById('patientFilter').addEventListener('change', function() {
-                loadAnalysisResults(this.value);
-            });
+            // 加载患者数据统计
+            loadPatientStatistics();
         });
-
-        // 切换标签页
+        
+        // 加载患者统计数据
+        function loadPatientStatistics() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+            
+            fetch('/api/doctor/statistics', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('统计数据已加载');
+                updateDashboard(data);
+            })
+            .catch(error => {
+                console.error('加载统计数据失败:', error);
+            });
+        }
+        
+        // 更新仪表板
+        function updateDashboard(data) {
+            // 实现仪表板数据展示逻辑
+        }
+        
+        // 标签页切换功能
         function showTab(tabId) {
             // 隐藏所有标签内容
             const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(content => {
-                content.classList.remove('active');
+            tabContents.forEach(tab => {
+                tab.classList.remove('active');
             });
             
-            // 取消所有标签项的选中状态
+            // 取消激活所有标签项
             const tabItems = document.querySelectorAll('.tab-item');
             tabItems.forEach(item => {
                 item.classList.remove('active');
             });
             
-            // 显示选定的标签内容
-            document.getElementById(tabId).classList.add('active');
+            // 显示所选标签内容
+            const selectedTab = document.getElementById(tabId);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+            }
             
-            // 设置选定的标签项为选中状态
-            const activeTab = document.querySelector(`.tab-item[onclick="showTab('${tabId}')"]`);
-            if (activeTab) {
-                activeTab.classList.add('active');
+            // 激活对应的标签项
+            const tabButtons = document.querySelectorAll(`.tab-item[onclick*="${tabId}"]`);
+            tabButtons.forEach(button => {
+                button.classList.add('active');
+            });
+            
+            // 如果是患者管理标签，加载患者数据
+            if (tabId === 'patients-tab') {
+                loadPatients();
+            }
+            
+            // 如果是分析结果标签，加载分析数据
+            if (tabId === 'analysis-tab') {
+                loadAnalysisResults();
             }
         }
-
-        // 加载仪表盘数据
-        function loadDashboardData() {
-            const token = localStorage.getItem('token');
-            
-            // 获取最近的分析结果
-            fetch('/api/analysis_results', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // 加载最近的分析结果
-                loadRecentAnalysisResults(data.slice(0, 5));
-                
-                // 创建患者抑郁倾向分布图表
-                createPatientDistributionChart(data);
-            })
-            .catch(error => console.error('获取分析结果失败:', error));
+        
+        // 页面初始化
+        function initializeDoctor() {
+            // 加载页面数据
+            loadPatients();
         }
-
+        
+        // 设置标签页切换
+        function setupTabSwitching() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    // 移除所有标签页的激活状态
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // 激活当前标签页
+                    this.classList.add('active');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+        }
+        
         // 加载患者列表
         function loadPatients() {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
             
-            fetch('/api/users', {
+            const patientsTable = document.getElementById('patientsTable');
+            const patientSelect = document.getElementById('patientSelect');
+            
+            if (!patientsTable && !patientSelect) return;
+            
+            fetch('/api/doctor/patients', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             })
             .then(response => response.json())
-            .then(data => {
-                // 过滤出患者角色的用户
-                const patients = data.filter(user => user.role === 'patient');
+            .then(patients => {
+                console.log('患者数据已加载');
                 
-                // 填充患者表格
-                const tableBody = document.getElementById('patientsTable');
-                tableBody.innerHTML = '';
-                
-                patients.forEach(patient => {
-                    const row = document.createElement('tr');
+                // 更新患者表格
+                if (patientsTable) {
+                    if (patients.length === 0) {
+                        patientsTable.innerHTML = '<tr><td colspan="6" class="text-center">暂无患者数据</td></tr>';
+                        return;
+                    }
                     
-                    row.innerHTML = `
-                        <td>${patient.id}</td>
-                        <td>${patient.username}</td>
-                        <td>${patient.email}</td>
-                        <td>${new Date(patient.created_at).toLocaleString()}</td>
-                        <td>-</td>
-                        <td>
-                            <button class="btn btn-primary btn-sm" onclick="viewPatientDetails(${patient.id})">
-                                <i class="fas fa-eye"></i> 查看
-                            </button>
-                            <button class="btn btn-success btn-sm" onclick="uploadForPatient(${patient.id})">
-                                <i class="fas fa-upload"></i> 上传
-                            </button>
-                        </td>
-                    `;
-                    
-                    tableBody.appendChild(row);
-                });
-                
-                // 填充患者下拉选择框
-                const patientSelect = document.getElementById('patientSelect');
-                patientSelect.innerHTML = '<option value="">-- 选择患者 --</option>';
-                
-                patients.forEach(patient => {
-                    const option = document.createElement('option');
-                    option.value = patient.id;
-                    option.textContent = `${patient.username} (ID: ${patient.id})`;
-                    patientSelect.appendChild(option);
-                });
-                
-                // 填充患者过滤下拉框
-                const patientFilter = document.getElementById('patientFilter');
-                patientFilter.innerHTML = '<option value="">所有患者</option>';
-                
-                patients.forEach(patient => {
-                    const option = document.createElement('option');
-                    option.value = patient.id;
-                    option.textContent = `${patient.username} (ID: ${patient.id})`;
-                    patientFilter.appendChild(option);
-                });
-            })
-            .catch(error => console.error('获取患者列表失败:', error));
-        }
-
-        // 加载最近分析结果
-        function loadRecentAnalysisResults(results) {
-            const tableBody = document.getElementById('recentAnalysisTable');
-            tableBody.innerHTML = '';
-            
-            results.forEach(result => {
-                const row = document.createElement('tr');
-                
-                // 确定状态标签的类型
-                let badgeClass = 'badge-info';
-                if (result.depression_probability <= 0.3) {
-                    badgeClass = 'badge-success';
-                } else if (result.depression_probability <= 0.6) {
-                    badgeClass = 'badge-info';
-                } else if (result.depression_probability <= 0.8) {
-                    badgeClass = 'badge-warning';
-                } else {
-                    badgeClass = 'badge-danger';
+                    let tableHtml = '';
+                    patients.forEach(patient => {
+                        tableHtml += `
+                            <tr>
+                                <td>${patient.id}</td>
+                                <td>${patient.username}</td>
+                                <td>${patient.email || '未设置'}</td>
+                                <td>${patient.created_at || '未知'}</td>
+                                <td>${patient.last_analysis || '无记录'}</td>
+                                <td>
+                                    <button class="btn btn-info btn-sm" onclick="viewPatient(${patient.id})">查看详情</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    patientsTable.innerHTML = tableHtml;
                 }
                 
-                row.innerHTML = `
-                    <td>${result.id}</td>
-                    <td>用户 #${result.user_id}</td>
-                    <td>${result.filename}</td>
-                    <td><span class="badge ${badgeClass}">${result.result_type || '未知'}</span></td>
-                    <td>${(result.depression_probability * 100).toFixed(2)}%</td>
-                    <td>${new Date(result.processed_at).toLocaleString()}</td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" onclick="viewAnalysisDetails(${result.id})">
-                            <i class="fas fa-eye"></i> 查看
-                        </button>
-                    </td>
-                `;
-                
-                tableBody.appendChild(row);
+                // 更新患者选择下拉框
+                if (patientSelect) {
+                    let optionsHtml = '<option value="">-- 选择患者 --</option>';
+                    patients.forEach(patient => {
+                        optionsHtml += `<option value="${patient.id}">${patient.username}</option>`;
+                    });
+                    patientSelect.innerHTML = optionsHtml;
+                }
+            })
+            .catch(error => {
+                console.error('加载患者数据失败:', error);
+                if (patientsTable) {
+                    patientsTable.innerHTML = '<tr><td colspan="6" class="text-center">加载患者数据失败</td></tr>';
+                }
             });
         }
-
-        // 加载所有分析结果
-        function loadAllAnalysisResults() {
-            const token = localStorage.getItem('token');
-            
-            fetch('/api/analysis_results', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                loadAnalysisResults(null, data);
-            })
-            .catch(error => console.error('获取分析结果失败:', error));
-        }
         
-        // 根据患者ID加载分析结果
-        function loadAnalysisResults(patientId, allData) {
-            const token = localStorage.getItem('token');
+        // 加载患者分析结果
+        function loadPatientResults() {
+            const token = localStorage.getItem('access_token');
+            const resultsContainer = document.getElementById('patient-results-container');
             
-            // 如果没有提供数据，则从服务器获取
-            if (!allData) {
-                fetch('/api/analysis_results' + (patientId ? `?user_id=${patientId}` : ''), {
+            if (resultsContainer) {
+                resultsContainer.innerHTML = '<div class="loading">正在加载患者分析结果...</div>';
+                
+                fetch('/api/doctor/patient-results', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取患者分析结果失败');
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    renderAnalysisResults(data);
-                })
-                .catch(error => console.error('获取分析结果失败:', error));
-            } else {
-                // 使用提供的数据
-                if (patientId) {
-                    // 过滤指定患者的数据
-                    const filteredData = allData.filter(item => item.user_id === parseInt(patientId));
-                    renderAnalysisResults(filteredData);
-                } else {
-                    renderAnalysisResults(allData);
-                }
-            }
-        }
-        
-        // 渲染分析结果表格
-        function renderAnalysisResults(results) {
-            const tableBody = document.getElementById('analysisResultsTable');
-            tableBody.innerHTML = '';
-            
-            results.forEach(result => {
-                const row = document.createElement('tr');
-                
-                // 确定状态标签的类型
-                let badgeClass = 'badge-info';
-                if (result.depression_probability <= 0.3) {
-                    badgeClass = 'badge-success';
-                } else if (result.depression_probability <= 0.6) {
-                    badgeClass = 'badge-info';
-                } else if (result.depression_probability <= 0.8) {
-                    badgeClass = 'badge-warning';
-                } else {
-                    badgeClass = 'badge-danger';
-                }
-                
-                row.innerHTML = `
-                    <td>${result.id}</td>
-                    <td>用户 #${result.user_id}</td>
-                    <td>${result.filename}</td>
-                    <td><span class="badge ${badgeClass}">${result.result_type || '未知'}</span></td>
-                    <td>${(result.depression_probability * 100).toFixed(2)}%</td>
-                    <td>${(result.confidence * 100).toFixed(2)}%</td>
-                    <td>${new Date(result.processed_at).toLocaleString()}</td>
-                    <td>
-                        <button class="btn btn-primary btn-sm" onclick="viewAnalysisDetails(${result.id})">
-                            <i class="fas fa-eye"></i> 查看
-                        </button>
-                    </td>
-                `;
-                
-                tableBody.appendChild(row);
-            });
-        }
-
-        // 创建患者抑郁倾向分布图表
-        function createPatientDistributionChart(data) {
-            // 计算各个分类的数量
-            const distributions = {
-                normal: 0,
-                mild: 0,
-                moderate: 0,
-                severe: 0
-            };
-            
-            data.forEach(item => {
-                if (item.depression_probability <= 0.3) {
-                    distributions.normal += 1;
-                } else if (item.depression_probability <= 0.6) {
-                    distributions.mild += 1;
-                } else if (item.depression_probability <= 0.8) {
-                    distributions.moderate += 1;
-                } else {
-                    distributions.severe += 1;
-                }
-            });
-            
-            // 创建图表
-            const ctx = document.getElementById('patientDistributionChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: ['正常', '轻度抑郁', '中度抑郁', '重度抑郁'],
-                    datasets: [{
-                        data: [
-                            distributions.normal,
-                            distributions.mild,
-                            distributions.moderate,
-                            distributions.severe
-                        ],
-                        backgroundColor: [
-                            '#2ecc71',
-                            '#3498db',
-                            '#f39c12',
-                            '#e74c3c'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-        }
-
-        // 查看分析结果详情
-        function viewAnalysisDetails(resultId) {
-            const token = localStorage.getItem('token');
-            
-            fetch(`/api/analysis_results/${resultId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                const detailsContainer = document.getElementById('analysisDetails');
-                
-                // 确定状态标签的类型
-                let badgeClass = 'badge-info';
-                if (data.depression_probability <= 0.3) {
-                    badgeClass = 'badge-success';
-                } else if (data.depression_probability <= 0.6) {
-                    badgeClass = 'badge-info';
-                } else if (data.depression_probability <= 0.8) {
-                    badgeClass = 'badge-warning';
-                } else {
-                    badgeClass = 'badge-danger';
-                }
-                
-                detailsContainer.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <p><strong>患者ID:</strong> ${data.user_id}</p>
-                        <p><strong>文件名:</strong> ${data.filename}</p>
-                        <p><strong>分析结果:</strong> <span class="badge ${badgeClass}">${data.result_type || '未知'}</span></p>
-                        <p><strong>抑郁概率:</strong> ${(data.depression_probability * 100).toFixed(2)}%</p>
-                        <p><strong>非抑郁概率:</strong> ${(data.non_depression_probability * 100).toFixed(2)}%</p>
-                        <p><strong>置信度:</strong> ${(data.confidence * 100).toFixed(2)}%</p>
-                        <p><strong>分析时间:</strong> ${new Date(data.processed_at).toLocaleString()}</p>
-                        <p><strong>患者年龄:</strong> ${data.patient_age || '未知'}</p>
-                        <p><strong>患者性别:</strong> ${data.patient_gender || '未知'}</p>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">面部表情分析</h4>
-                        </div>
-                        <div class="card-body">
-                            <pre>${JSON.stringify(data.facial_analysis || {}, null, 2)}</pre>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">语音分析</h4>
-                        </div>
-                        <div class="card-body">
-                            <pre>${JSON.stringify(data.voice_analysis || {}, null, 2)}</pre>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">肢体语言分析</h4>
-                        </div>
-                        <div class="card-body">
-                            <pre>${JSON.stringify(data.body_language_analysis || {}, null, 2)}</pre>
-                        </div>
-                    </div>
-                `;
-                
-                // 显示模态框
-                document.getElementById('viewAnalysisModal').style.display = 'block';
-            })
-            .catch(error => console.error('获取分析结果详情失败:', error));
-        }
-
-        // 查看患者详情
-        function viewPatientDetails(patientId) {
-            const token = localStorage.getItem('token');
-            
-            // 获取患者信息
-            fetch(`/api/users/${patientId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(patient => {
-                // 获取患者的分析结果
-                fetch(`/api/analysis_results?user_id=${patientId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                })
-                .then(response => response.json())
-                .then(results => {
-                    const detailsContainer = document.getElementById('patientDetails');
-                    
-                    // 计算最近的分析结果
-                    let latestResult = null;
-                    if (results.length > 0) {
-                        latestResult = results.reduce((latest, current) => {
-                            return new Date(current.processed_at) > new Date(latest.processed_at) ? current : latest;
-                        }, results[0]);
-                    }
-                    
-                    // 生成患者详情HTML
-                    let html = `
-                        <div style="margin-bottom: 20px;">
-                            <p><strong>患者ID:</strong> ${patient.id}</p>
-                            <p><strong>用户名:</strong> ${patient.username}</p>
-                            <p><strong>邮箱:</strong> ${patient.email}</p>
-                            <p><strong>注册时间:</strong> ${new Date(patient.created_at).toLocaleString()}</p>
-                            <p><strong>分析次数:</strong> ${results.length}</p>
-                    `;
-                    
-                    // 如果有最近分析结果，显示最近分析结果
-                    if (latestResult) {
-                        let badgeClass = 'badge-info';
-                        if (latestResult.depression_probability <= 0.3) {
-                            badgeClass = 'badge-success';
-                        } else if (latestResult.depression_probability <= 0.6) {
-                            badgeClass = 'badge-info';
-                        } else if (latestResult.depression_probability <= 0.8) {
-                            badgeClass = 'badge-warning';
-                        } else {
-                            badgeClass = 'badge-danger';
-                        }
-                        
-                        html += `
-                            <p><strong>最近分析时间:</strong> ${new Date(latestResult.processed_at).toLocaleString()}</p>
-                            <p><strong>最近分析结果:</strong> <span class="badge ${badgeClass}">${latestResult.result_type || '未知'}</span></p>
-                            <p><strong>抑郁概率:</strong> ${(latestResult.depression_probability * 100).toFixed(2)}%</p>
-                        `;
-                    }
-                    
-                    html += `</div>`;
-                    
-                    // 如果有分析结果，添加患者历史记录表格
-                    if (results.length > 0) {
-                        html += `
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title">历史分析记录</h4>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>文件名</th>
-                                                <th>结果</th>
-                                                <th>抑郁概率</th>
-                                                <th>分析时间</th>
-                                                <th>操作</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                        `;
-                        
-                        // 按时间降序排序结果
-                        const sortedResults = results.sort((a, b) => 
-                            new Date(b.processed_at) - new Date(a.processed_at)
-                        );
-                        
-                        sortedResults.forEach(result => {
-                            let badgeClass = 'badge-info';
-                            if (result.depression_probability <= 0.3) {
-                                badgeClass = 'badge-success';
-                            } else if (result.depression_probability <= 0.6) {
-                                badgeClass = 'badge-info';
-                            } else if (result.depression_probability <= 0.8) {
-                                badgeClass = 'badge-warning';
-                            } else {
-                                badgeClass = 'badge-danger';
-                            }
-                            
+                    if (data && data.length > 0) {
+                        let html = '<h2>患者分析结果</h2><div class="results-list">';
+                        data.forEach(item => {
                             html += `
-                                <tr>
-                                    <td>${result.id}</td>
-                                    <td>${result.filename}</td>
-                                    <td><span class="badge ${badgeClass}">${result.result_type || '未知'}</span></td>
-                                    <td>${(result.depression_probability * 100).toFixed(2)}%</td>
-                                    <td>${new Date(result.processed_at).toLocaleString()}</td>
-                                    <td>
-                                        <button class="btn btn-primary btn-sm" onclick="viewAnalysisDetails(${result.id})">
-                                            <i class="fas fa-eye"></i> 查看
-                                        </button>
-                                    </td>
-                                </tr>
+                                <div class="result-item">
+                                    <div class="result-details">
+                                        <h4>患者: ${item.patient_name || '匿名'}</h4>
+                                        <p>文件: ${item.filename}</p>
+                                        <p>结果: ${item.result_type}</p>
+                                        <p>时间: ${item.created_at}</p>
+                                    </div>
+                                    <button class="view-patient-result-btn" data-result-id="${item.id}">查看详情</button>
+                                </div>
                             `;
                         });
+                        html += '</div>';
+                        resultsContainer.innerHTML = html;
                         
-                        html += `
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        `;
+                        // 绑定查看详情按钮事件
+                        document.querySelectorAll('.view-patient-result-btn').forEach(button => {
+                            button.addEventListener('click', function() {
+                                const resultId = this.getAttribute('data-result-id');
+                                fetchAndDisplayPatientResult(resultId);
+                            });
+                        });
+                    } else {
+                        resultsContainer.innerHTML = '<h2>患者分析结果</h2><p>暂无患者分析结果</p>';
                     }
-                    
-                    detailsContainer.innerHTML = html;
-                    
-                    // 显示模态框
-                    document.getElementById('viewPatientModal').style.display = 'block';
                 })
-                .catch(error => console.error('获取患者分析结果失败:', error));
-            })
-            .catch(error => console.error('获取患者信息失败:', error));
-        }
-
-        // 为指定患者打开上传标签页
-        function uploadForPatient(patientId) {
-            // 切换到上传标签页
-            showTab('upload-tab');
-            
-            // 设置选择的患者
-            document.getElementById('patientSelect').value = patientId;
-        }
-
-        // 显示文件信息
-        function showFileInfo() {
-            const fileInput = document.getElementById('videoFile');
-            const fileInfo = document.getElementById('fileInfo');
-            const fileName = document.getElementById('fileName');
-            
-            if (fileInput.files.length > 0) {
-                fileName.textContent = fileInput.files[0].name;
-                fileInfo.style.display = 'block';
-            } else {
-                fileInfo.style.display = 'none';
+                .catch(error => {
+                    console.error('获取患者分析结果失败:', error);
+                    resultsContainer.innerHTML = '<h2>患者分析结果</h2><p>加载患者分析结果失败，请稍后再试</p>';
+                });
             }
         }
-
-        // 删除选择的文件
+        
+        // 获取并显示患者分析结果详情
+        function fetchAndDisplayPatientResult(resultId) {
+            const token = localStorage.getItem('access_token');
+            const detailsContainer = document.getElementById('patient-result-details');
+            
+            if (detailsContainer) {
+                detailsContainer.innerHTML = '<div class="loading">正在加载分析结果...</div>';
+                detailsContainer.style.display = 'block';
+                
+                fetch(`/api/doctor/patient-result/${resultId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取分析结果失败');
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    detailsContainer.innerHTML = `
+                        <div class="result-card detailed">
+                            <h3>患者: ${result.patient_name || '匿名'}</h3>
+                            <p>文件: ${result.filename}</p>
+                            <p class="result-type">结果类型: <strong>${result.result_type}</strong></p>
+                            <div class="probability">
+                                <p>抑郁概率: ${(result.probability_class1 * 100).toFixed(2)}%</p>
+                                <p>非抑郁概率: ${(result.probability_class0 * 100).toFixed(2)}%</p>
+                            </div>
+                            <div class="analysis-details">
+                                <h4>详细分析:</h4>
+                                <p>面部表情: ${result.facial_analysis?.expression || '无数据'}</p>
+                                <p>语音分析: ${result.voice_analysis?.tone || '无数据'}</p>
+                                <p>肢体语言: ${result.body_language_analysis?.movement || '无数据'}</p>
+                            </div>
+                            <p>患者年龄: ${result.patient_age || '未知'}</p>
+                            <p>患者性别: ${result.patient_gender || '未知'}</p>
+                            <p>分析时间: ${result.created_at}</p>
+                            <div class="doctor-actions">
+                                <button onclick="addNotes(${result.id})">添加医生笔记</button>
+                                <button onclick="generateReport(${result.id})">生成报告</button>
+                            </div>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error('获取患者分析结果详情失败:', error);
+                    detailsContainer.innerHTML = '<p class="error">获取患者分析结果详情失败，请稍后再试</p>';
+                });
+            }
+        }
+        
+        // 添加医生笔记
+        function addNotes(resultId) {
+            const notes = prompt('请输入医生笔记:');
+            if (notes) {
+                const token = localStorage.getItem('access_token');
+                
+                fetch(`/api/doctor/add-notes/${resultId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ notes })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('添加笔记失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    alert('笔记添加成功');
+                })
+                .catch(error => {
+                    console.error('添加笔记失败:', error);
+                    alert('添加笔记失败，请稍后再试');
+                });
+            }
+        }
+          // 生成报告
+        function generateReport(resultId) {
+            alert('报告功能正在开发中，敬请期待');
+        }
+        
+        // 处理文件选择和显示
+        document.getElementById('videoFile').addEventListener('change', function(e) {
+            const file = this.files[0];
+            if (file) {
+                const fileName = document.getElementById('fileName');
+                const fileInfo = document.getElementById('fileInfo');
+                
+                fileName.textContent = file.name;
+                fileInfo.style.display = 'block';
+            }
+        });
+        
+        // 移除已选择的文件
         function removeFile() {
-            const fileInput = document.getElementById('videoFile');
+            const videoFile = document.getElementById('videoFile');
             const fileInfo = document.getElementById('fileInfo');
             
-            fileInput.value = '';
+            videoFile.value = '';
             fileInfo.style.display = 'none';
         }
-
-        // 上传视频
-        function uploadVideo() {
-            const token = localStorage.getItem('token');
-            const formData = new FormData();
+        
+        // 设置上传表单提交
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
             
             const patientId = document.getElementById('patientSelect').value;
             const patientAge = document.getElementById('patientAge').value;
             const patientGender = document.getElementById('patientGender').value;
-            const fileInput = document.getElementById('videoFile');
+            const videoFile = document.getElementById('videoFile').files[0];
             
             if (!patientId) {
                 alert('请选择患者');
                 return;
             }
             
-            if (fileInput.files.length === 0) {
+            if (!videoFile) {
                 alert('请选择视频文件');
                 return;
             }
             
+            const formData = new FormData();
+            formData.append('video_file', videoFile);
             formData.append('patient_id', patientId);
-            if (patientAge) formData.append('patient_age', patientAge);
-            if (patientGender) formData.append('patient_gender', patientGender);
-            formData.append('video', fileInput.files[0]);
             
-            // 显示上传中消息
-            alert('正在上传视频，请稍候...');
+            if (patientAge) {
+                formData.append('patient_age', patientAge);
+            }
             
-            fetch('/api/upload_for_patient', {
+            if (patientGender) {
+                formData.append('patient_gender', patientGender);
+            }
+            
+            const token = localStorage.getItem('access_token');
+            
+            // 显示上传进度
+            const uploadBtn = document.querySelector('#uploadForm button[type="submit"]');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上传中...';
+            
+            fetch('/api/doctor/upload-analysis', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -1163,100 +998,333 @@
                 body: formData
             })
             .then(response => response.json())
-            .then(data => {
-                if (data.message) {
-                    alert('视频上传成功');
-                    // 重置表单
-                    document.getElementById('uploadForm').reset();
-                    removeFile();
-                    // 刷新数据
-                    loadAllAnalysisResults();
-                    loadDashboardData();
-                } else {
-                    alert('上传失败: ' + (data.detail || '未知错误'));
-                }
+            .then(result => {
+                alert('上传并分析成功');
+                
+                // 重置表单
+                document.getElementById('uploadForm').reset();
+                document.getElementById('fileInfo').style.display = 'none';
+                
+                // 刷新分析结果
+                loadAnalysisResults();
+                
+                // 切换到分析结果标签页
+                showTab('analysis-tab');
             })
             .catch(error => {
-                console.error('上传视频失败:', error);
-                alert('上传失败，请稍后重试');
+                console.error('上传分析失败:', error);
+                alert('上传分析失败，请稍后再试');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '上传并分析';
             });
-        }
-
-        // 加载用户个人资料
-        function loadUserProfile() {
-            const token = localStorage.getItem('token');
+        });
+        
+        // 加载分析结果
+        function loadAnalysisResults() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
             
-            fetch('/api/users/me', {
+            const analysisResultsTable = document.getElementById('analysisResultsTable');
+            const recentAnalysisTable = document.getElementById('recentAnalysisTable');
+            const patientFilter = document.getElementById('patientFilter');
+            
+            if (!analysisResultsTable && !recentAnalysisTable) return;
+            
+            // 获取过滤条件
+            const patientId = patientFilter ? patientFilter.value : '';
+            
+            let url = '/api/doctor/analysis-results';
+            if (patientId) {
+                url += `?patient_id=${patientId}`;
+            }
+            
+            fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             })
             .then(response => response.json())
-            .then(user => {
-                document.getElementById('username').value = user.username;
-                document.getElementById('email').value = user.email;
+            .then(results => {
+                console.log('分析结果数据已加载');
+                
+                // 处理结果为空的情况
+                if (results.length === 0) {
+                    const emptyRow = '<tr><td colspan="8" class="text-center">暂无分析结果数据</td></tr>';
+                    if (analysisResultsTable) analysisResultsTable.innerHTML = emptyRow;
+                    if (recentAnalysisTable) recentAnalysisTable.innerHTML = emptyRow;
+                    return;
+                }
+                
+                // 生成表格HTML
+                const generateTableRows = (data, includePatient = true) => {
+                    return data.map(result => `
+                        <tr>
+                            <td>${result.id}</td>
+                            ${includePatient ? `<td>${result.patient_name || '未知'}</td>` : ''}
+                            <td>${result.filename || '未知文件'}</td>
+                            <td>
+                                <span class="badge ${getBadgeClass(result.predicted_class)}">
+                                    ${result.predicted_class}
+                                </span>
+                            </td>
+                            <td>${(result.probability_class1 * 100).toFixed(2)}%</td>
+                            <td>${(result.confidence * 100).toFixed(2)}%</td>
+                            <td>${result.created_at}</td>
+                            <td>
+                                <button class="btn btn-info btn-sm" onclick="viewAnalysisDetail(${result.id})">
+                                    查看详情
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                };
+                
+                // 更新分析结果表格
+                if (analysisResultsTable) {
+                    analysisResultsTable.innerHTML = generateTableRows(results);
+                }
+                
+                // 更新最近分析结果表格（仅显示最近5条）
+                if (recentAnalysisTable) {
+                    const recentResults = results.slice(0, 5);
+                    recentAnalysisTable.innerHTML = generateTableRows(recentResults);
+                }
+                
+                // 如果是首次加载且患者过滤下拉框存在，填充下拉框
+                if (!patientFilter.innerHTML && patientFilter) {
+                    const patients = new Map();
+                    results.forEach(result => {
+                        if (result.patient_id && result.patient_name) {
+                            patients.set(result.patient_id, result.patient_name);
+                        }
+                    });
+                    
+                    let optionsHtml = '<option value="">所有患者</option>';
+                    patients.forEach((name, id) => {
+                        optionsHtml += `<option value="${id}">${name}</option>`;
+                    });
+                    patientFilter.innerHTML = optionsHtml;
+                    
+                    // 添加过滤事件
+                    patientFilter.addEventListener('change', loadAnalysisResults);
+                }
             })
-            .catch(error => console.error('获取用户资料失败:', error));
+            .catch(error => {
+                console.error('加载分析结果数据失败:', error);
+                const errorRow = '<tr><td colspan="8" class="text-center">加载分析结果数据失败</td></tr>';
+                if (analysisResultsTable) analysisResultsTable.innerHTML = errorRow;
+                if (recentAnalysisTable) recentAnalysisTable.innerHTML = errorRow;
+            });
         }
-
-        // 更新个人资料
-        function updateProfile() {
-            const token = localStorage.getItem('token');
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            // 验证密码
-            if (password) {
-                if (password !== confirmPassword) {
-                    alert('两次输入的密码不一致');
-                    return;
-                }
-                
-                if (password.length < 6) {
-                    alert('密码长度不能少于6个字符');
-                    return;
-                }
-                
-                // 提交密码更新请求
-                fetch('/api/users/update-password', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ password })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        alert('密码更新成功');
-                        // 清空密码字段
-                        document.getElementById('password').value = '';
-                        document.getElementById('confirmPassword').value = '';
-                    } else {
-                        alert('密码更新失败: ' + (data.detail || '未知错误'));
-                    }
-                })
-                .catch(error => console.error('更新密码失败:', error));
-            } else {
-                alert('没有要更新的信息');
+        
+        // 根据结果类型获取对应的样式类
+        function getBadgeClass(resultType) {
+            switch(resultType) {
+                case '正常':
+                    return 'badge-success';
+                case '轻度抑郁':
+                    return 'badge-info';
+                case '中度抑郁':
+                    return 'badge-warning';
+                case '重度抑郁':
+                    return 'badge-danger';
+                default:
+                    return '';
             }
         }
-
-        // 关闭查看分析结果模态框
+        
+        // 查看患者详情
+        function viewPatient(patientId) {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+            
+            const patientDetailsContainer = document.getElementById('patientDetails');
+            const viewPatientModal = document.getElementById('viewPatientModal');
+            
+            if (!patientDetailsContainer || !viewPatientModal) return;
+            
+            fetch(`/api/doctor/patient/${patientId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(patient => {
+                patientDetailsContainer.innerHTML = `
+                    <div class="patient-info">
+                        <p><strong>用户名:</strong> ${patient.username}</p>
+                        <p><strong>电子邮箱:</strong> ${patient.email || '未设置'}</p>
+                        <p><strong>注册时间:</strong> ${patient.created_at || '未知'}</p>
+                        <p><strong>用户状态:</strong> ${patient.is_active ? '活跃' : '禁用'}</p>
+                        <p><strong>最近分析:</strong> ${patient.last_analysis || '无记录'}</p>
+                        <p><strong>分析总次数:</strong> ${patient.analysis_count || 0}</p>
+                    </div>
+                    
+                    <h3 style="margin-top: 20px;">分析历史</h3>
+                    <div id="patientAnalysisHistory">加载中...</div>
+                `;
+                
+                // 显示模态框
+                viewPatientModal.style.display = 'block';
+                
+                // 加载患者分析历史
+                fetch(`/api/doctor/patient-history/${patientId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => response.json())
+                .then(history => {
+                    const historyContainer = document.getElementById('patientAnalysisHistory');
+                    if (!historyContainer) return;
+                    
+                    if (history.length === 0) {
+                        historyContainer.innerHTML = '<p>该患者暂无分析记录</p>';
+                        return;
+                    }
+                    
+                    let historyHtml = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>文件名</th>
+                                    <th>结果</th>
+                                    <th>抑郁概率</th>
+                                    <th>分析时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    history.forEach(item => {
+                        historyHtml += `
+                            <tr>
+                                <td>${item.id}</td>
+                                <td>${item.filename || '未知文件'}</td>
+                                <td>
+                                    <span class="badge ${getBadgeClass(item.predicted_class)}">
+                                        ${item.predicted_class}
+                                    </span>
+                                </td>
+                                <td>${(item.probability_class1 * 100).toFixed(2)}%</td>
+                                <td>${item.created_at}</td>
+                                <td>
+                                    <button class="btn btn-info btn-sm" onclick="viewAnalysisDetail(${item.id})">
+                                        查看详情
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    historyHtml += '</tbody></table>';
+                    historyContainer.innerHTML = historyHtml;
+                })
+                .catch(error => {
+                    console.error('加载患者分析历史失败:', error);
+                    const historyContainer = document.getElementById('patientAnalysisHistory');
+                    if (historyContainer) {
+                        historyContainer.innerHTML = '<p class="error">加载患者分析历史失败</p>';
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('加载患者详情失败:', error);
+                patientDetailsContainer.innerHTML = '<p class="error">加载患者详情失败，请稍后再试</p>';
+                viewPatientModal.style.display = 'block';
+            });
+        }
+        
+        // 查看分析详情
+        function viewAnalysisDetail(analysisId) {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+            
+            const analysisDetailsContainer = document.getElementById('analysisDetails');
+            const viewAnalysisModal = document.getElementById('viewAnalysisModal');
+            
+            if (!analysisDetailsContainer || !viewAnalysisModal) return;
+            
+            analysisDetailsContainer.innerHTML = '<div class="loading">加载分析详情...</div>';
+            viewAnalysisModal.style.display = 'block';
+            
+            fetch(`/api/doctor/analysis-detail/${analysisId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                analysisDetailsContainer.innerHTML = `
+                    <div class="result-card detailed">
+                        <h3>分析ID: ${result.id}</h3>
+                        <p><strong>患者:</strong> ${result.patient_name || '未知'}</p>
+                        <p><strong>文件名:</strong> ${result.filename || '未知文件'}</p>
+                        <p><strong>分析时间:</strong> ${result.created_at}</p>
+                        
+                        <div class="result-main">
+                            <p class="result-type"><strong>结果类型:</strong> 
+                                <span class="badge ${getBadgeClass(result.predicted_class)}">
+                                    ${result.predicted_class}
+                                </span>
+                            </p>
+                            <p><strong>抑郁概率:</strong> ${(result.probability_class1 * 100).toFixed(2)}%</p>
+                            <p><strong>非抑郁概率:</strong> ${(result.probability_class0 * 100).toFixed(2)}%</p>
+                            <p><strong>置信度:</strong> ${(result.confidence * 100).toFixed(2)}%</p>
+                        </div>
+                        
+                        <div class="analysis-details">
+                            <h4>详细分析:</h4>
+                            <p><strong>面部表情:</strong> ${result.facial_analysis?.expression || '无数据'}</p>
+                            <p><strong>语音分析:</strong> ${result.voice_analysis?.tone || '无数据'}</p>
+                            <p><strong>肢体语言:</strong> ${result.body_language_analysis?.movement || '无数据'}</p>
+                        </div>
+                        
+                        <div class="patient-info">
+                            <h4>患者信息:</h4>
+                            <p><strong>年龄:</strong> ${result.patient_age || '未知'}</p>
+                            <p><strong>性别:</strong> ${result.patient_gender || '未知'}</p>
+                        </div>
+                        
+                        <div class="doctor-notes">
+                            <h4>医生笔记:</h4>
+                            <div id="notesContainer">
+                                ${result.doctor_notes ? `<p>${result.doctor_notes}</p>` : '<p>暂无笔记</p>'}
+                            </div>
+                            <button class="btn btn-primary" onclick="addNotes(${result.id})">添加/编辑笔记</button>
+                        </div>
+                        
+                        <div class="actions">
+                            <button class="btn btn-success" onclick="generateReport(${result.id})">生成报告</button>
+                        </div>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                console.error('加载分析详情失败:', error);
+                analysisDetailsContainer.innerHTML = '<p class="error">加载分析详情失败，请稍后再试</p>';
+            });
+        }
+        
+        // 关闭查看分析详情模态框
         function closeViewAnalysisModal() {
-            document.getElementById('viewAnalysisModal').style.display = 'none';
+            const modal = document.getElementById('viewAnalysisModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
         }
         
         // 关闭查看患者详情模态框
         function closeViewPatientModal() {
-            document.getElementById('viewPatientModal').style.display = 'none';
-        }
-
-        // 退出登录
-        function logout() {
-            localStorage.removeItem('token');
-            window.location.href = '/login';
+            const modal = document.getElementById('viewPatientModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
         }
     </script>
 </body>

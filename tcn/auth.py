@@ -152,6 +152,15 @@ async def get_current_doctor_user(current_user = Depends(get_current_active_user
         )
     return current_user
 
+# 专门检查患者权限的依赖
+async def get_current_patient_user(current_user = Depends(get_current_active_user)):
+    if current_user.role not in ["patient", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要患者权限"
+        )
+    return current_user
+
 # 创建密码重置令牌
 def create_reset_token(length=32):
     alphabet = string.ascii_letters + string.digits

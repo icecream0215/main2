@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>患者界面 - 抑郁症检测系统</title>    
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/user-menu.css">    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/main.js"></script>
+    <!-- 添加认证检查脚本 -->
+    <script>
+        // 页面加载时立即检查认证状态
+        document.addEventListener('DOMContentLoaded', function() {
+            async function checkAuth() {
+                try {
+                    const token = localStorage.getItem('access_token');
+                    if (!token) {
+                        throw new Error('未登录');
+                    }
+                    
+                    // 设置拦截器为所有请求添加认证头
+                    const originalFetch = window.fetch;
+                    window.fetch = function() {
+                        const args = Array.prototype.slice.call(arguments);
+                        if (args[1] === undefined) {
+                            args[1] = {};
+                        }
+                        if (args[1].headers === undefined) {
+                            args[1].headers = {};
+                        }
+                        args[1].headers['Authorization'] = `Bearer ${token}`;
+                        return originalFetch.apply(this, args);
+                    };
+
+                    // 验证令牌并检查用户权限
+                    const response = await fetch('/users/me');
+                    if (!response.ok) {
+                        throw new Error('认证失败');
+                    }
+                    
+                    const user = await response.json();
+                    if (user.role !== 'patient' && user.role !== 'admin') {
+                        throw new Error('权限不足');
+                    }
+                    
+                    console.log('认证成功:', user);
+                    // 存储用户信息
+                    localStorage.setItem('user_data', JSON.stringify(user));
+                    
+                } catch (error) {
+                    console.error('认证失败:', error);
+                    // 清除认证信息
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('user_role');
+                    localStorage.removeItem('user_data');
+                    // 重定向到登录页面
+                    window.location.href = '/login';
+                }
+            }
+            
+            // 执行认证检查
+            checkAuth();
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>抑郁症检测系统 - 患者界面</h1>
+            <nav>
+                <ul>
+                    <li><a href="/">首页</a></li>
+                    <li><a href="/patient" class="active">我的检测</a></li>
+                </ul>
+            </nav>
+            <div id="user-info" class="user-info">
+                <!-- 用户信息将通过JavaScript动态插入 -->
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="upload-section">
+            <h2>视频分析</h2>
+            <p>上传一段视频进行抑郁症检测</p>
+            
+            <form id="upload-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="video-upload">选择视频文件（MP4、AVI、MOV格式）</label>
+                    <input type="file" id="video-upload" name="video_file" accept=".mp4,.avi,.mov" required>
+                </div>
+                
+                <div id="preview-container" class="preview-container"></div>
+                
+                <button type="submit" class="btn primary-btn">开始分析</button>
+            </form>
+            
+            <progress id="upload-progress" max="100" value="0" style="display: none; width: 100%;"></progress>
+            
+            <div id="result-container" class="result-container"></div>
+        </section>
+        
+        <section id="history-container" class="history-section">
+            <h2>历史记录</h2>
+            <div class="loading">正在加载历史记录...</div>
+        </section>
+        
+        <section id="result-details" class="details-section" style="display: none;">
+            <h2>详细分析结果</h2>
+            <!-- 结果详情将通过JavaScript动态插入 -->
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 抑郁症检测系统</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/main.js"></script>
+    <script>
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 表单提交处理
+            const uploadForm = document.getElementById('upload-form');
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const videoInput = document.getElementById('video-upload');
+                    const progressBar = document.getElementById('upload-progress');
+                    const resultContainer = document.getElementById('result-container');
+                    
+                    if (!videoInput.files || videoInput.files.length === 0) {
+                        alert('请选择一个视频文件');
+                        return;
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('video_file', videoInput.files[0]);
+                    
+                    // 显示进度条
+                    if (progressBar) {
+                        progressBar.style.display = 'block';
+                        progressBar.value = 0;
+                    }
+                    
+                    // 显示加载提示
+                    if (resultContainer) {
+                        resultContainer.innerHTML = '<p>正在处理视频，请稍候...</p>';
+                    }
+                    
+                    // 模拟进度
+                    let progress = 0;
+                    const progressInterval = setInterval(() => {
+                        progress += 5;
+                        if (progressBar && progress <= 90) {
+                            progressBar.value = progress;
+                        }
+                    }, 1000);
+                    
+                    const token = localStorage.getItem('access_token');
+                    
+                    fetch('/predict', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('服务器返回错误：' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        clearInterval(progressInterval);
+                        if (progressBar) {
+                            progressBar.value = 100;
+                        }
+                        
+                        if (resultContainer) {
+                            resultContainer.innerHTML = `
+                                <div class="result-card">
+                                    <h3>分析结果</h3>
+                                    <p class="result-type">结果: <strong>${data.result_type}</strong></p>
+                                    <div class="probability">
+                                        <p>抑郁概率: ${(data.depression_probability * 100).toFixed(2)}%</p>
+                                        <p>非抑郁概率: ${(data.non_depression_probability * 100).toFixed(2)}%</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        // 刷新历史记录
+                        fetchUserHistory();
+                    })
+                    .catch(error => {
+                        clearInterval(progressInterval);
+                        console.error('上传分析失败:', error);
+                        if (resultContainer) {
+                            resultContainer.innerHTML = '<p class="error">分析失败，请稍后再试。错误：' + error.message + '</p>';
+                        }
+                        if (progressBar) {
+                            progressBar.style.display = 'none';
+                        }
+                    });
+                });
+            }
+            
+            // 加载历史记录
+            fetchUserHistory();
+            
+            // 视频预览功能
+            const videoInput = document.getElementById('video-upload');
+            const previewContainer = document.getElementById('preview-container');
+            
+            if (videoInput && previewContainer) {
+                videoInput.addEventListener('change', function() {
+                    if (this.files && this.files[0]) {
+                        const file = this.files[0];
+                        const fileReader = new FileReader();
+                        
+                        fileReader.onload = function(e) {
+                            previewContainer.innerHTML = `
+                                <video controls width="100%" style="max-height: 300px;">
+                                    <source src="${e.target.result}" type="${file.type}">
+                                    您的浏览器不支持视频标签。
+                                </video>
+                            `;
+                        };
+                        
+                        fileReader.readAsDataURL(file);
+                    }
+                });
+            }
+        });
+        
+        // 获取用户历史记录
+        function fetchUserHistory() {
+            const token = localStorage.getItem('access_token');
+            const historyContainer = document.getElementById('history-container');
+            
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            if (historyContainer) {
+                historyContainer.innerHTML = '<div class="loading">正在加载历史记录...</div>';
+                
+                fetch('/api/history', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取历史记录失败');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.length > 0) {
+                        let html = '<h2>历史记录</h2><div class="history-list">';
+                        data.forEach(item => {
+                            html += `
+                                <div class="history-item">
+                                    <div class="history-details">
+                                        <h4>${item.filename}</h4>
+                                        <p>结果: ${item.predicted_class}</p>
+                                        <p>时间: ${item.created_at}</p>
+                                    </div>
+                                    <button class="view-result-btn" data-result-id="${item.id}">查看详情</button>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        historyContainer.innerHTML = html;
+                        
+                        // 绑定查看详情按钮事件
+                        document.querySelectorAll('.view-result-btn').forEach(button => {
+                            button.addEventListener('click', function() {
+                                const resultId = this.getAttribute('data-result-id');
+                                fetchAndDisplayResult(resultId);
+                            });
+                        });
+                    } else {
+                        historyContainer.innerHTML = '<h2>历史记录</h2><p>暂无历史记录</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('获取历史记录失败:', error);
+                    historyContainer.innerHTML = '<h2>历史记录</h2><p>加载历史记录失败，请稍后再试</p>';
+                });
+            }
+        }
+
+        // 获取并显示分析结果详情
+        function fetchAndDisplayResult(resultId) {
+            const token = localStorage.getItem('access_token');
+            const detailsContainer = document.getElementById('result-details');
+            
+            if (detailsContainer) {
+                detailsContainer.innerHTML = '<div class="loading">正在加载分析结果...</div>';
+                detailsContainer.style.display = 'block';
+                
+                fetch(`/api/result/${resultId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('获取分析结果失败');
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    detailsContainer.innerHTML = `
+                        <h2>详细分析结果</h2>
+                        <div class="result-card detailed">
+                            <h3>${result.filename}</h3>
+                            <p class="result-type">结果类型: <strong>${result.result_type}</strong></p>
+                            <div class="probability">
+                                <p>抑郁概率: ${(result.probability_class1 * 100).toFixed(2)}%</p>
+                                <p>非抑郁概率: ${(result.probability_class0 * 100).toFixed(2)}%</p>
+                            </div>
+                            <div class="analysis-details">
+                                <h4>详细分析:</h4>
+                                <p>面部表情: ${result.facial_analysis?.expression || '无数据'}</p>
+                                <p>语音分析: ${result.voice_analysis?.tone || '无数据'}</p>
+                                <p>肢体语言: ${result.body_language_analysis?.movement || '无数据'}</p>
+                            </div>
+                            <p>处理时间: ${result.created_at}</p>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    console.error('获取结果详情失败:', error);
+                    detailsContainer.innerHTML = '<h2>详细分析结果</h2><p class="error">获取结果详情失败，请稍后再试</p>';
+                });
+            }
+        }
+    </script>
+</body>
+</html>
