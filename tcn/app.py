@@ -497,6 +497,33 @@ async def doctor_page_post(auth_token: str = Form(...)):
             status_code=500
         )
 
+# API 端点：获取患者列表 (医生和管理员)
+@app.get("/api/doctor/patients", response_model=List[Dict[str, Any]])
+async def get_doctor_patients(current_user: User = Depends(get_current_doctor_user), db: Session = Depends(get_db)):
+    logger.info(f"用户 {current_user.username} 请求患者列表")
+    # 在实际应用中，这里会从数据库查询与该医生相关的患者
+    # 此处使用模拟数据
+    mock_patients = [
+        {"id": 1, "name": "患者张三", "age": 30, "gender": "男", "last_analysis_date": "2023-10-26", "status": "稳定"},
+        {"id": 2, "name": "患者李四", "age": 45, "gender": "女", "last_analysis_date": "2023-10-25", "status": "需关注"},
+        {"id": 3, "name": "患者王五", "age": 22, "gender": "男", "last_analysis_date": "2023-10-27", "status": "良好"},
+    ]
+    return mock_patients
+
+# API 端点：获取最近分析记录 (医生和管理员)
+@app.get("/api/doctor/recent_analyses", response_model=List[Dict[str, Any]])
+async def get_doctor_recent_analyses(current_user: User = Depends(get_current_doctor_user), db: Session = Depends(get_db)):
+    logger.info(f"用户 {current_user.username} 请求最近分析记录")
+    # 在实际应用中，这里会从数据库查询最近的分析记录
+    # 此处使用模拟数据
+    mock_analyses = [
+        {"patient_name": "患者张三", "date": "2023-10-26", "result": "轻度抑郁", "confidence": 0.75},
+        {"patient_name": "患者李四", "date": "2023-10-25", "result": "中度抑郁", "confidence": 0.85},
+        {"patient_name": "患者王五", "date": "2023-10-27", "result": "正常", "confidence": 0.95},
+        {"patient_name": "患者赵六", "date": "2023-10-28", "result": "重度抑郁", "confidence": 0.90},
+    ]
+    return mock_analyses
+
 # 患者页面路由
 @app.get("/patient", response_class=HTMLResponse)
 async def patient_page(request: Request, current_user: User = Depends(get_current_patient_user)):
@@ -873,6 +900,26 @@ async def get_user_history(current_user = Depends(get_current_active_user), db: 
             "depression_probability": result.depression_probability,
             "probability_class0": result.probability_class0, # 保留兼容旧代码
             "probability_class1": result.probability_class1, # 保留兼容旧代码
+            "confidence": result.confidence,
+            "created_at": result.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        })
+    return history_list
+
+# 获取用户最近的分析结果（仅限于概览页显示）
+@app.get("/api/history/recent", response_model=list)
+async def get_recent_history(limit: int = 3, current_user = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    logger.info(f"用户 {current_user.username} 请求最近 {limit} 条历史记录")
+    from database import AnalysisResult
+    # 获取当前用户的最近几条分析记录
+    results = db.query(AnalysisResult).filter(AnalysisResult.user_id == current_user.id).order_by(AnalysisResult.created_at.desc()).limit(limit).all()
+    
+    history_list = []
+    for result in results:
+        history_list.append({
+            "id": result.id,
+            "filename": result.filename,
+            "result_type": result.result_type,
+            "depression_probability": result.depression_probability,
             "confidence": result.confidence,
             "created_at": result.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
@@ -1436,6 +1483,67 @@ async def update_user_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"更新个人资料失败: {str(e)}"
+        )
+
+# 获取情绪趋势数据
+@app.get("/api/trend", response_model=dict)
+async def get_mood_trend(days: Optional[int] = None, current_user = Depends(get_current_active_user), db: Session = Depends(get_db)):
+    """获取用户的情绪趋势数据，用于绘制趋势图表"""
+    logger.info(f"用户 {current_user.username} 请求情绪趋势数据，天数: {days}")
+    
+    try:
+        from database import AnalysisResult
+        import datetime
+        
+        # 确定时间范围
+        end_date = datetime.datetime.utcnow()
+        if days:
+            start_date = end_date - datetime.timedelta(days=days)
+            # 查询指定时间范围内的分析记录
+            results = db.query(AnalysisResult).filter(
+                AnalysisResult.user_id == current_user.id,
+                AnalysisResult.created_at >= start_date,
+                AnalysisResult.created_at <= end_date
+            ).order_by(AnalysisResult.created_at.asc()).all()
+        else:
+            # 查询所有时间的分析记录
+            results = db.query(AnalysisResult).filter(
+                AnalysisResult.user_id == current_user.id
+            ).order_by(AnalysisResult.created_at.asc()).all()
+        
+        # 如果没有数据，返回空数据结构
+        if not results:
+            return {
+                "dates": [],
+                "mood_scores": [],
+                "depression_risks": []
+            }
+            
+        # 准备数据
+        dates = []
+        mood_scores = []
+        depression_risks = []
+        
+        for result in results:
+            dates.append(result.created_at.strftime("%Y-%m-%d"))
+            # 情绪指数 = 非抑郁概率 * 100
+            mood_score = int(result.non_depression_probability * 100)
+            mood_scores.append(mood_score)
+            # 抑郁风险 = 抑郁概率 * 100
+            depression_risk = int(result.depression_probability * 100)
+            depression_risks.append(depression_risk)
+        
+        return {
+            "dates": dates,
+            "mood_scores": mood_scores,
+            "depression_risks": depression_risks
+        }
+    
+    except Exception as e:
+        logger.error(f"获取情绪趋势数据失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取趋势数据失败: {str(e)}"
         )
 
 # 启动FastAPI应用

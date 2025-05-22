@@ -77,49 +77,52 @@
         });
     </script>
 </head>
-<body>    <div class="dashboard">
-        <!-- 侧边栏导航 -->
+<body>    <div class="dashboard">        <!-- 侧边栏导航 -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <a href="/" class="logo">
-                    <i class="fas fa-brain"></i> 抑郁检测系统
+                    <i class="fas fa-brain"></i> 
+                    <span>抑郁智检</span>
                 </a>
-            </div>
-            <ul class="sidebar-menu">
+            </div>            <ul class="sidebar-menu">
                 <li>
-                    <a href="/" class="active">
-                        <i class="fas fa-home icon"></i> 首页
+                    <a href="#overview" class="menu-item" onclick="showTab('overview-tab')">
+                        <i class="fas fa-tachometer-alt icon"></i> 
+                        <span>概览</span>
                     </a>
                 </li>
                 <li>
-                    <a href="/patient">
-                        <i class="fas fa-chart-line icon"></i> 我的检测
+                    <a href="#upload" class="menu-item" onclick="showTab('upload-tab')">
+                        <i class="fas fa-upload icon"></i> 
+                        <span>上传视频</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#history">
-                        <i class="fas fa-history icon"></i> 历史记录
+                    <a href="#result" class="menu-item" onclick="showTab('result-tab')">
+                        <i class="fas fa-chart-line icon"></i> 
+                        <span>分析结果</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#profile">
-                        <i class="fas fa-user icon"></i> 个人资料
+                    <a href="#trend" class="menu-item" onclick="showTab('trend-tab')">
+                        <i class="fas fa-chart-bar icon"></i> 
+                        <span>趋势分析</span>
                     </a>
                 </li>
                 <li>
-                    <a href="#help">
-                        <i class="fas fa-question-circle icon"></i> 帮助中心
+                    <a href="#profile" class="menu-item" onclick="showTab('profile-tab')">
+                        <i class="fas fa-user icon"></i> 
+                        <span>个人资料</span>
                     </a>
                 </li>
             </ul>
             <div class="sidebar-footer">
-                <a href="#" onclick="logout(); return false;" class="btn btn-text">
-                    <i class="fas fa-sign-out-alt"></i> 退出登录
+                <a href="#" onclick="logout(); return false;" class="btn-logout">
+                    <i class="fas fa-sign-out-alt"></i> 
+                    <span>退出登录</span>
                 </a>
             </div>
-        </aside>
-
-        <!-- 主内容区 -->
+        </aside>        <!-- 主内容区 -->
         <main class="main-content">
             <div class="dashboard-header">
                 <h1>患者控制面板</h1>
@@ -135,101 +138,268 @@
 
             <div class="user-greeting" id="user-greeting">欢迎回来！</div>
             
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <div class="stat-title">检测总次数</div>
-                    <div class="stat-value">8</div>
-                    <div class="stat-change stat-up">
-                        <i class="fas fa-arrow-up"></i> 3 次 (上周)
+            <!-- 概览标签页 -->
+            <div id="overview-tab" class="tab-content active">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-title">检测总次数</div>
+                        <div class="stat-value">8</div>
+                        <div class="stat-change stat-up">
+                            <i class="fas fa-arrow-up"></i> 3 次 (上周)
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">平均情绪指数</div>
-                    <div class="stat-value">76%</div>
-                    <div class="stat-change stat-up">
-                        <i class="fas fa-arrow-up"></i> 5% (上周)
+                    <div class="stat-card">
+                        <div class="stat-title">平均情绪指数</div>
+                        <div class="stat-value">76%</div>
+                        <div class="stat-change stat-up">
+                            <i class="fas fa-arrow-up"></i> 5% (上周)
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">最近检测日期</div>
-                    <div class="stat-value">2025/05/20</div>
-                    <div class="stat-change">
-                        <i class="fas fa-calendar-check"></i> 2天前
-                    </div>
-                </div>
-            </div>
-            
-            <section class="analysis-section">
-                <h2 class="section-title">视频分析</h2>
-                <div class="card">
-                    <div class="card-header">
-                        <h3>上传视频进行情绪分析</h3>
-                    </div>
-                    <div class="card-body">
-                        <form id="upload-form" enctype="multipart/form-data">
-                            <div class="form-group">                                <label for="video-upload"><i class="fas fa-file-video"></i> 选择视频文件</label>
-                                <input type="file" id="video-upload" name="video_file" accept=".mp4,.avi,.mov" required>
-                                <div class="form-text">支持MP4、AVI、MOV格式，最大文件大小100MB</div>
-                            </div>
-                            
-                            <div id="preview-container" class="preview-container mt-3"></div>
-                            
-                            <div class="form-group mt-3">
-                                <button type="submit" class="btn">
-                                    <i class="fas fa-chart-pie btn-icon"></i> 开始分析
-                                </button>
-                            </div>
-                        </form>
-                        
-                        <div id="upload-progress-container" style="display: none;" class="mt-3">
-                            <div class="form-text mb-1">视频上传中，请稍候...</div>
-                            <progress id="upload-progress" max="100" value="0" style="width: 100%;"></progress>
+                    <div class="stat-card">
+                        <div class="stat-title">最近检测日期</div>
+                        <div class="stat-value">2025/05/20</div>
+                        <div class="stat-change">
+                            <i class="fas fa-calendar-check"></i> 2天前
                         </div>
                     </div>
                 </div>
                 
-                <div id="result-container" class="result-container mt-4"></div>
-            </section>
+                <div class="analysis-grid">
+                    <section class="analysis-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-chart-line section-icon"></i>
+                            情绪趋势概览
+                        </h2>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>
+                                    <span class="d-flex align-center gap-sm">
+                                        <i class="fas fa-calendar-alt" style="color: var(--primary-color);"></i>
+                                        过去30天情绪变化
+                                    </span>
+                                </h3>
+                                <div class="card-actions">
+                                    <button class="btn btn-sm btn-outline" onclick="showTab('trend-tab')">
+                                        <i class="fas fa-external-link-alt"></i> 查看详情
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="overview-mood-chart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <section class="analysis-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-history section-icon"></i>
+                            最近检测记录
+                        </h2>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>
+                                    <span class="d-flex align-center gap-sm">
+                                        <i class="fas fa-clock" style="color: var(--primary-color);"></i>
+                                        近期检测
+                                    </span>
+                                </h3>
+                                <div class="card-actions">
+                                    <button class="btn btn-sm btn-outline" onclick="showTab('result-tab')">
+                                        <i class="fas fa-external-link-alt"></i> 查看全部
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="overview-history-container" class="history-section">
+                                    <div class="loader"></div>
+                                    <div class="text-center text-muted p-4">正在加载历史记录...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
             
-            <section class="analysis-section">
-                <h2 class="section-title">情绪趋势图</h2>
-                <div class="chart-container">
-                    <div class="chart-header">
-                        <h3>过去30天情绪变化</h3>
-                        <div class="chart-actions">
-                            <button class="btn btn-sm btn-outline">
-                                <i class="fas fa-download"></i> 导出数据
-                            </button>
+            <!-- 上传视频标签页 -->
+            <div id="upload-tab" class="tab-content">
+                <section class="analysis-section">
+                    <h2 class="section-title">上传视频进行分析</h2>                
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>上传视频进行情绪分析</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="upload-form" enctype="multipart/form-data">
+                                <div class="upload-area" id="drop-area">
+                                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                    <h4 class="upload-title">上传视频文件</h4>
+                                    <p class="upload-subtitle">拖放文件到此处，或点击选择文件</p>
+                                    <button type="button" class="upload-btn" id="select-file-btn">
+                                        <i class="fas fa-file-video"></i>
+                                        选择视频
+                                    </button>
+                                    <input type="file" id="video-upload" name="video_file" accept=".mp4,.avi,.mov" class="file-input-hidden" required>
+                                    <div class="form-text mt-3">支持MP4、AVI、MOV格式，最大文件大小100MB</div>
+                                </div>
+                                
+                                <div id="file-preview" class="file-preview" style="display: none;">
+                                    <div class="file-preview-icon">
+                                        <i class="fas fa-file-video"></i>
+                                    </div>
+                                    <div class="file-preview-info">
+                                        <span class="file-preview-name" id="file-name">video.mp4</span>
+                                        <span class="file-preview-size" id="file-size">0 MB</span>
+                                    </div>
+                                    <div class="file-preview-actions">
+                                        <button type="button" class="btn btn-icon btn-sm btn-outline" id="remove-file">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group mt-4 text-center">
+                                    <button type="submit" class="btn btn-lg btn-primary">
+                                        <i class="fas fa-chart-pie btn-icon"></i> 开始分析
+                                    </button>
+                                </div>
+                            </form>
+                            
+                            <div id="upload-progress-container" style="display: none;" class="mt-4">
+                                <div class="progress-text">
+                                    <span>视频上传中，请稍候...</span>
+                                    <span id="progress-percentage">0%</span>
+                                </div>
+                                <div class="progress-container">
+                                    <div class="progress-bar" id="upload-progress" style="width: 0%"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <canvas id="mood-chart"></canvas>
-                </div>
-            </section>
+                    <div id="result-container" class="result-container mt-4"></div>
+                </section>
+            </div>
             
-            <section class="analysis-section">
-                <h2 class="section-title">历史检测记录</h2>
-                <div class="card">
-                    <div class="card-header">
-                        <h3>近期检测</h3>
-                        <div class="card-actions">
-                            <button class="btn btn-sm btn-text">查看全部</button>
+            <!-- 分析结果标签页 -->
+            <div id="result-tab" class="tab-content">
+                <section class="analysis-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-chart-pie section-icon"></i>
+                        分析结果
+                    </h2>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>历史检测记录</h3>
+                            <div class="card-actions">
+                                <div class="form-group mb-0">
+                                    <select class="form-control form-control-sm" id="result-filter">
+                                        <option>全部记录</option>
+                                        <option>仅显示风险记录</option>
+                                        <option>仅显示正常记录</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="history-container" class="history-section">
+                                <div class="loader"></div>
+                                <div class="text-center text-muted p-4">正在加载历史记录...</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div id="history-container" class="history-section">
-                            <div class="loader"></div>
-                            <div class="text-center text-muted">正在加载历史记录...</div>
+                </section>
+                
+                <section id="result-details" class="details-section" style="display: none;">
+                    <h2 class="section-title">详细分析结果</h2>
+                    <div class="card">
+                        <!-- 结果详情将通过JavaScript动态插入 -->
+                    </div>
+                </section>
+            </div>
+            
+            <!-- 趋势分析标签页 -->
+            <div id="trend-tab" class="tab-content">
+                <section class="analysis-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-chart-line section-icon"></i>
+                        情绪趋势分析
+                    </h2>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>
+                                <span class="d-flex align-center gap-sm">
+                                    <i class="fas fa-calendar-alt" style="color: var(--primary-color);"></i>
+                                    情绪变化趋势
+                                </span>
+                            </h3>
+                            <div class="chart-actions">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline active" onclick="updateTrendChart(30)">30天</button>
+                                    <button class="btn btn-sm btn-outline" onclick="updateTrendChart(90)">90天</button>
+                                    <button class="btn btn-sm btn-outline" onclick="updateTrendChart('all')">全部</button>
+                                </div>
+                                <button class="btn btn-sm btn-outline ml-1">
+                                    <i class="fas fa-download"></i> 导出
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-legend">
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background-color: rgba(96, 165, 250, 0.5);"></span>
+                                    <span>情绪指数</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background-color: rgba(252, 165, 165, 0.5);"></span>
+                                    <span>抑郁风险</span>
+                                </div>
+                            </div>
+                            <canvas id="mood-chart"></canvas>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
             
-            <section id="result-details" class="details-section" style="display: none;">
-                <h2 class="section-title">详细分析结果</h2>
-                <div class="card">
-                    <!-- 结果详情将通过JavaScript动态插入 -->
-                </div>
-            </section>
+            <!-- 个人资料标签页 -->
+            <div id="profile-tab" class="tab-content">
+                <section class="analysis-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-user section-icon"></i>
+                        个人资料
+                    </h2>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>我的账户信息</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="profile-form">
+                                <div class="form-group">
+                                    <label for="username">用户名</label>
+                                    <input type="text" id="username" class="form-control" disabled>
+                                </div>
+                                <div class="form-group">
+                                    <label for="email">电子邮箱</label>
+                                    <input type="email" id="email" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="current-password">当前密码</label>
+                                    <input type="password" id="current-password" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="new-password">新密码 (如需修改)</label>
+                                    <input type="password" id="new-password" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="confirm-password">确认新密码</label>
+                                    <input type="password" id="confirm-password" class="form-control">
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">保存更改</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 
@@ -331,53 +501,85 @@
                         const resultIcon = isDepressed ? 'fa-exclamation-triangle' : 'fa-check-circle';
                         const depressionPercent = (data.depression_probability * 100).toFixed(1);
                         const normalPercent = (data.non_depression_probability * 100).toFixed(1);
-                        
-                        if (resultContainer) {
+                          if (resultContainer) {
                             resultContainer.innerHTML = `
-                                <div class="result-card">
-                                    <div class="result-media">
-                                        <video id="result-video" controls></video>
-                                    </div>
-                                    <div class="result-content">
-                                        <h3 class="result-title">分析结果</h3>
-                                        <div class="result-meta">
-                                            <div class="result-meta-item">
-                                                <i class="fas fa-calendar icon"></i> ${new Date().toLocaleDateString('zh-CN')}
-                                            </div>
-                                            <div class="result-meta-item">
-                                                <i class="fas fa-clock icon"></i> ${new Date().toLocaleTimeString('zh-CN')}
-                                            </div>
+                                <div class="animate-slide-up">
+                                    <div class="result-card">
+                                        <div class="result-media">
+                                            <video id="result-video" controls></video>
                                         </div>
-                                        <div class="alert alert-${resultClass}">
-                                            <i class="fas ${resultIcon} alert-icon"></i>
-                                            <div class="alert-content">
-                                                <strong>${resultText}</strong>
-                                                <p>${isDepressed ? '建议咨询医生获取专业帮助' : '继续保持积极心态'}</p>
-                                            </div>
-                                        </div>
-                                        <div class="result-stats">
-                                            <div class="result-stat">
-                                                <div class="result-stat-label">抑郁风险指数</div>
-                                                <div class="result-progress">
-                                                    <div class="result-progress-bar result-progress-depression" style="width: ${depressionPercent}%"></div>
+                                        <div class="result-content">
+                                            <h3 class="result-title">
+                                                <i class="fas fa-clipboard-check" style="color: var(--primary-color);"></i>
+                                                分析结果
+                                            </h3>
+                                            <div class="result-meta">
+                                                <div class="result-meta-item">
+                                                    <i class="fas fa-calendar icon"></i> ${new Date().toLocaleDateString('zh-CN')}
                                                 </div>
-                                                <div class="text-right mt-1">${depressionPercent}%</div>
-                                            </div>
-                                            <div class="result-stat">
-                                                <div class="result-stat-label">健康心理指数</div>
-                                                <div class="result-progress">
-                                                    <div class="result-progress-bar result-progress-normal" style="width: ${normalPercent}%"></div>
+                                                <div class="result-meta-item">
+                                                    <i class="fas fa-clock icon"></i> ${new Date().toLocaleTimeString('zh-CN')}
                                                 </div>
-                                                <div class="text-right mt-1">${normalPercent}%</div>
                                             </div>
-                                        </div>
-                                        <div class="result-actions">
-                                            <button class="btn" onclick="viewResultDetails()">查看详细报告</button>
-                                            <button class="btn btn-outline">下载分析报告</button>
+                                            <div class="alert alert-${resultClass} animate-fade-in">
+                                                <i class="fas ${resultIcon} alert-icon"></i>
+                                                <div class="alert-content">
+                                                    <strong>${resultText}</strong>
+                                                    <p>${isDepressed ? '建议咨询医生获取专业帮助' : '继续保持积极心态'}</p>
+                                                </div>
+                                            </div>
+                                            <div class="result-stats animate-fade-in" style="animation-delay: 0.2s">
+                                                <div class="result-stat">
+                                                    <div class="result-stat-label">
+                                                        <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
+                                                        抑郁风险指数
+                                                    </div>
+                                                    <div class="result-progress">
+                                                        <div class="result-progress-bar result-progress-depression" style="width: 0%"></div>
+                                                    </div>
+                                                    <div class="d-flex justify-between mt-1">
+                                                        <span class="text-muted">低风险</span>
+                                                        <span>${depressionPercent}%</span>
+                                                        <span class="text-muted">高风险</span>
+                                                    </div>
+                                                </div>
+                                                <div class="result-stat animate-fade-in" style="animation-delay: 0.3s">
+                                                    <div class="result-stat-label">
+                                                        <i class="fas fa-heart" style="color: #10b981;"></i>
+                                                        健康心理指数
+                                                    </div>
+                                                    <div class="result-progress">
+                                                        <div class="result-progress-bar result-progress-normal" style="width: 0%"></div>
+                                                    </div>
+                                                    <div class="d-flex justify-between mt-1">
+                                                        <span class="text-muted">较低</span>
+                                                        <span>${normalPercent}%</span>
+                                                        <span class="text-muted">优秀</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="result-actions animate-fade-in" style="animation-delay: 0.4s">
+                                                <button class="btn btn-primary" onclick="viewResultDetails()">
+                                                    <i class="fas fa-chart-bar"></i>
+                                                    查看详细报告
+                                                </button>
+                                                <button class="btn btn-outline">
+                                                    <i class="fas fa-download"></i>
+                                                    下载分析报告
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             `;
+                            
+                            // 添加动画延迟显示结果进度条
+                            setTimeout(() => {
+                                const depressionBar = document.querySelector('.result-progress-depression');
+                                const normalBar = document.querySelector('.result-progress-normal');
+                                if (depressionBar) depressionBar.style.width = `${depressionPercent}%`;
+                                if (normalBar) normalBar.style.width = `${normalPercent}%`;
+                            }, 500);
                             
                             // 更新图表
                             updateMoodChart(data.depression_probability);
@@ -449,11 +651,16 @@
                 });
             }
         });
-        
-        // 初始化情绪趋势图表
+          // 初始化情绪趋势图表
         function initMoodChart() {
             const ctx = document.getElementById('mood-chart');
             if (!ctx) return;
+            
+            // 设置全局默认样式使图表更现代
+            Chart.defaults.font.family = "'Inter', 'SF Pro Display', 'Segoe UI', sans-serif";
+            Chart.defaults.color = '#4b5563';
+            Chart.defaults.borderColor = '#e5e7eb';
+            Chart.defaults.plugins.tooltip.titleFont.weight = '600';
             
             // 模拟过去30天的数据
             const labels = Array.from({length: 30}, (_, i) => {
@@ -462,44 +669,129 @@
                 return `${date.getMonth() + 1}/${date.getDate()}`;
             });
             
-            const depressionData = [65, 62, 60, 63, 58, 57, 59, 55, 50, 52, 48, 45, 40, 42, 38, 35, 30, 32, 28, 30, 25, 27, 22, 20, 22, 18, 15, 17, 12, 10];
-            const normalData = depressionData.map(val => 100 - val);
+            // 生成平滑下降的数据曲线
+            const depressionData = [];
+            const normalData = [];
             
-            new Chart(ctx, {
+            // 开始时有50%抑郁风险，然后逐渐降低
+            let value = 50;
+            for (let i = 0; i < 30; i++) {
+                // 添加一些随机波动
+                const randomChange = Math.random() * 5 - 2;
+                // 整体趋势是下降的
+                const trend = -0.5; 
+                value = Math.max(10, Math.min(65, value + randomChange + trend));
+                depressionData.push(value);
+                normalData.push(100 - value);
+            }
+            
+            const todayLabel = `${new Date().getMonth() + 1}/${new Date().getDate()}`;
+            
+            const chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
                         label: '健康心理指数',
                         data: normalData,
-                        borderColor: '#34a853',
-                        backgroundColor: 'rgba(52, 168, 83, 0.1)',
-                        tension: 0.3,
-                        fill: true
+                        borderColor: 'rgba(96, 165, 250, 1)',
+                        borderWidth: 2,
+                        backgroundColor: 'rgba(96, 165, 250, 0.2)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        pointHoverBackgroundColor: 'rgba(96, 165, 250, 1)',
+                        pointHoverBorderColor: '#ffffff'
                     }, {
                         label: '抑郁风险指数',
                         data: depressionData,
-                        borderColor: '#ea4335',
-                        backgroundColor: 'rgba(234, 67, 53, 0.1)',
-                        tension: 0.3,
-                        fill: true
+                        borderColor: 'rgba(252, 165, 165, 1)',
+                        borderWidth: 2,
+                        backgroundColor: 'rgba(252, 165, 165, 0.2)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        pointHoverBackgroundColor: 'rgba(252, 165, 165, 1)',
+                        pointHoverBorderColor: '#ffffff'
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     plugins: {
                         legend: {
-                            position: 'top',
+                            display: false, // 图例在图表上方单独显示
                         },
                         tooltip: {
-                            mode: 'index',
-                            intersect: false,
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            titleColor: '#1f2937',
+                            bodyColor: '#4b5563',
+                            borderColor: '#e5e7eb',
+                            borderWidth: 1,
+                            padding: 10,
+                            boxPadding: 5,
+                            usePointStyle: true,
+                            callbacks: {
+                                labelPointStyle: function(context) {
+                                    return {
+                                        pointStyle: 'circle',
+                                        rotation: 0
+                                    };
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                todayLine: {
+                                    type: 'line',
+                                    xMin: todayLabel,
+                                    xMax: todayLabel,
+                                    borderColor: 'rgba(59, 130, 246, 0.5)',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: {
+                                        display: true,
+                                        content: '今天',
+                                        position: 'top',
+                                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                                        color: 'white',
+                                        padding: 4,
+                                        font: {
+                                            size: 10
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
                     scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 7
+                            }
+                        },
                         y: {
                             beginAtZero: true,
                             max: 100,
+                            grid: {
+                                color: 'rgba(229, 231, 235, 0.5)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
                             title: {
                                 display: true,
                                 text: '百分比 (%)'

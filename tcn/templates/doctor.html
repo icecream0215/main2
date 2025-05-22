@@ -14,354 +14,514 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- 添加Font Awesome图标库 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="/static/js/main.js"></script>
-    <style>
+    <script src="/static/js/main.js"></script>    <style>
         /* 医生工作站专属样式 */
         .dashboard {
             display: grid;
-            grid-template-columns: 240px 1fr;
+            grid-template-columns: 260px 1fr;
             min-height: 100vh;
-        }
-        
-        /* 侧边栏样式增强 */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 240px;
-            background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
-            color: #fff;
-            transition: var(--transition);
-            z-index: 1000;
-            overflow-y: auto;
-            box-shadow: var(--shadow-md);
-            border-right: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        
-        .sidebar-header {
-            padding: 20px 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .logo {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #fff;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .sidebar-menu {
-            padding: 0;
-            list-style: none;
-            margin: 20px 0;
-        }
-        
-        .sidebar-menu li {
-            margin-bottom: 5px;
-        }
-        
-        .sidebar-menu a {
-            padding: 12px 20px;
-            color: rgba(255, 255, 255, 0.85);
-            text-decoration: none;
-            font-size: 0.95rem;
-            display: flex;
-            align-items: center;
-            border-radius: 6px;
-            margin: 0 8px;
-            transition: all 0.2s ease-in-out;
-        }
-        
-        .sidebar-menu a:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: #fff;
-        }
-        
-        .sidebar-menu a.active {
-            background-color: var(--primary-color);
-            color: #fff;
-            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.3);
-        }
-        
-        .sidebar-menu .icon {
-            margin-right: 10px;
-            width: 20px;
-            text-align: center;
-        }
-        
-        .sidebar-footer {
-            padding: 15px 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin-top: auto;
-            font-size: 0.8rem;
-            text-align: center;
-            color: rgba(255, 255, 255, 0.6);
         }
         
         /* 主内容区域样式 */
         .main-content {
-            margin-left: 240px;
-            padding: 25px;
+            margin-left: 260px;
+            padding: var(--spacing-xl);
             transition: var(--transition);
             background-color: var(--background-color);
             min-height: 100vh;
         }
+          /* 面包屑导航 */
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            margin-bottom: var(--spacing-lg);
+            padding: var(--spacing-sm) 0;
+            list-style: none;
+            font-size: 0.9rem;
+        }
         
         .breadcrumb li:not(:last-child)::after {
             content: '/';
-            margin: 0 5px;
+            margin: 0 var(--spacing-sm);
+            color: var(--text-muted);
         }
         
         .breadcrumb li a {
-            color: #3498db;
+            color: var(--primary-color);
             text-decoration: none;
+            transition: var(--transition-fast);
         }
         
+        .breadcrumb li a:hover {
+            color: var(--primary-dark);
+        }
+        
+        /* 卡片样式 */
         .card {
-            background-color: #fff;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            padding: 20px;
-            margin-bottom: 20px;
+            background-color: var(--surface-color);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-md);
         }
         
         .card-header {
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
         }
         
         .card-title {
             margin: 0;
-            font-size: 18px;
-            color: #333;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        
+        .card-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
         }
         
         /* 表格样式 */
         .table {
             width: 100%;
             border-collapse: collapse;
+            margin: var(--spacing-md) 0;
         }
         
         .table th,
         .table td {
-            padding: 12px 15px;
+            padding: var(--spacing-sm) var(--spacing-md);
             text-align: left;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-color);
         }
         
         .table th {
-            background-color: #f9f9f9;
-            font-weight: 600;
-            color: #333;
+            background-color: var(--background-alt);
+            font-weight: 500;
+            color: var(--text-color);
         }
         
         .table tbody tr:hover {
-            background-color: #f5f5f5;
+            background-color: rgba(var(--primary-color-rgb), 0.02);
         }
         
+        /* 徽章样式 */
         .badge {
-            padding: 5px 10px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25em 0.75em;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border-radius: var(--radius-full);
         }
         
         .badge-success {
-            background-color: #2ecc71;
-            color: #fff;
+            background-color: rgba(5, 150, 105, 0.1);
+            color: var(--secondary-color);
         }
         
         .badge-warning {
-            background-color: #f39c12;
-            color: #fff;
+            background-color: rgba(249, 115, 22, 0.1);
+            color: var(--warning-color);
         }
         
         .badge-danger {
-            background-color: #e74c3c;
-            color: #fff;
+            background-color: rgba(220, 38, 38, 0.1);
+            color: var(--danger-color);
         }
         
         .badge-info {
-            background-color: #3498db;
-            color: #fff;
+            background-color: rgba(14, 165, 233, 0.1);
+            color: var(--info-color);
         }
-        
-        .btn {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary {
-            background-color: #3498db;
-            color: #fff;
-        }
-        
-        .btn-success {
-            background-color: #2ecc71;
-            color: #fff;
-        }
-        
-        .btn-danger {
-            background-color: #e74c3c;
-            color: #fff;
-        }
-        
-        .btn-warning {
-            background-color: #f39c12;
-            color: #fff;
-        }
-        
-        .btn:hover {
-            opacity: 0.85;
-        }
-        
-        /* 表单样式 */
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        .form-label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #333;
-        }
-        
-        .form-control {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 14px;
-        }
-        
-        .form-control:focus {
-            border-color: #3498db;
-            outline: none;
-        }
-        
-        /* 模态框样式 */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        
-        .modal-content {
-            background-color: #fff;
-            margin: 10% auto;
-            padding: 20px;
-            border-radius: 5px;
-            width: 50%;
-            max-width: 500px;
-            position: relative;
-        }
-        
-        .close {
-            position: absolute;
-            right: 20px;
-            top: 10px;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        
-        /* 文件上传区域样式 */
+          /* 文件上传区域样式 */
         .upload-area {
-            border: 2px dashed #ddd;
-            border-radius: 5px;
-            padding: 30px 20px;
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
             text-align: center;
-            transition: all 0.3s ease;
+            transition: var(--transition);
             cursor: pointer;
-            margin-bottom: 15px;
+            background-color: var(--background-alt);
+            margin-bottom: var(--spacing-lg);
         }
         
         .upload-area:hover {
-            border-color: #3498db;
+            border-color: var(--primary-color);
+            background-color: rgba(var(--primary-color-rgb), 0.02);
         }
         
         .upload-area i {
-            font-size: 48px;
-            color: #3498db;
-            margin-bottom: 15px;
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: var(--spacing-md);
+            display: block;
         }
         
         .upload-area p {
             margin: 0;
-            color: #777;
+            color: var(--text-light);
+            font-size: 0.95rem;
         }
-        
-        /* 标签切换样式 */
+          /* 标签切换样式 */
         .tab-container {
-            margin-bottom: 20px;
+            margin-bottom: var(--spacing-xl);
         }
         
         .tabs {
             display: flex;
             list-style: none;
             padding: 0;
-            margin: 0;
-            border-bottom: 1px solid #ddd;
+            margin: 0 0 var(--spacing-lg);
+            border-bottom: 1px solid var(--border-color);
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
         }
         
         .tab-item {
-            padding: 10px 15px;
+            padding: var(--spacing-sm) var(--spacing-md);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: var(--transition-fast);
+            font-weight: 500;
+            color: var(--text-light);
+            position: relative;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        
+        .tab-item:hover {
+            color: var(--primary-color);
         }
         
         .tab-item.active {
-            border-bottom: 2px solid #3498db;
-            color: #3498db;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
         }
         
         .tab-content {
             display: none;
-            padding: 20px 0;
+            padding: var(--spacing-md) 0;
+            animation: fadeIn 0.3s ease-out;
         }
         
         .tab-content.active {
             display: block;
         }
+        
+        /* 医生工作站特有的组件 */
+        .patient-card {
+            display: flex;
+            align-items: center;
+            padding: var(--spacing-md);
+            border-radius: var(--radius-md);
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            margin-bottom: var(--spacing-md);
+            transition: var(--transition);
+        }
+        
+        .patient-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+            border-color: rgba(var(--primary-color-rgb), 0.3);
+        }
+        
+        .patient-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: var(--background-alt);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: var(--spacing-md);
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 1.25rem;
+        }
+        
+        .patient-details {
+            flex: 1;
+        }
+        
+        .patient-name {
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .patient-meta {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            display: flex;
+            gap: var(--spacing-md);
+        }
+        
+        .patient-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+        
+        /* 统计卡片网格 - 医生工作站定制 */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        /* 统计卡片图标 */
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: var(--spacing-sm);
+            position: absolute;
+            top: var(--spacing-lg);
+            right: var(--spacing-lg);
+        }
+        
+        .bg-primary-light {
+            background-color: rgba(var(--primary-color-rgb), 0.12);
+            color: var(--primary-color);
+        }
+        
+        .bg-success-light {
+            background-color: rgba(5, 150, 105, 0.12);
+            color: var(--secondary-color);
+        }
+        
+        .bg-warning-light {
+            background-color: rgba(249, 115, 22, 0.12);
+            color: var(--warning-color);
+        }
+        
+        .bg-info-light {
+            background-color: rgba(14, 165, 233, 0.12);
+            color: var(--info-color);
+        }
+        
+        .bg-danger-light {
+            background-color: rgba(220, 38, 38, 0.12);
+            color: var(--danger-color);
+        }
+        
+        /* 统计卡片增强 */
+        .stat-card {
+            padding-top: var(--spacing-lg);
+            padding-bottom: var(--spacing-lg);
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-lg);
+        }
+        
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 0 0 0 100%;
+        }
+        
+        /* 通知提示样式 */
+        .toast-container {
+            position: fixed;
+            top: var(--spacing-lg);
+            right: var(--spacing-lg);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-sm);
+        }
+        
+        .toast {
+            padding: var(--spacing-md);
+            background-color: var(--surface-color);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            max-width: 350px;
+            animation: slideInUp 0.3s ease-out;
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .toast-success {
+            border-left-color: var(--secondary-color);
+        }
+        
+        .toast-warning {
+            border-left-color: var(--warning-color);
+        }
+        
+        .toast-error {
+            border-left-color: var(--danger-color);
+        }
+        
+        .toast-icon {
+            margin-right: var(--spacing-sm);
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+        
+        .toast-success .toast-icon {
+            color: var(--secondary-color);
+        }
+        
+        .toast-warning .toast-icon {
+            color: var(--warning-color);
+        }
+        
+        .toast-error .toast-icon {
+            color: var(--danger-color);
+        }
+        
+        .toast-content {
+            flex: 1;
+        }
+        
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .toast-message {
+            font-size: 0.875rem;
+            color: var(--text-light);
+        }
+        
+        .toast-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: var(--spacing-xs);
+            font-size: 1.1rem;
+            margin-left: var(--spacing-sm);
+        }
+
+        /* 搜索框样式 */
+        .search-container {
+            position: relative;
+            width: 300px;
+        }
+        
+        .search-input {
+            padding-right: 40px;
+            padding-left: 16px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            border: 1.5px solid var(--border-color);
+            background-color: var(--surface-color);
+            transition: var(--transition-fast);
+        }
+        
+        .search-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+        }
+        
+        .search-btn {
+            position: absolute;
+            right: 4px;
+            top: 4px;
+            background: transparent;
+            border: none;
+            height: 32px;
+            width: 32px;
+            border-radius: 50%;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .search-btn:hover {
+            color: var(--primary-color);
+            background-color: rgba(var(--primary-color-rgb), 0.05);
+        }
+        
+        /* 用户头像 */
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: rgba(var(--primary-color-rgb), 0.1);
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        
+        .user-name {
+            font-weight: 500;
+            color: var(--text-color);
+        }
+        
+        /* 通知徽章 */
+        .notification-badge {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            background-color: var(--danger-color);
+            color: white;
+            font-size: 0.7rem;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        /* 图表布局 */
+        .chart-layout {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: var(--spacing-lg);
+        }
+        
+        /* 患者小头像 */
+        .patient-avatar-sm {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: rgba(var(--primary-color-rgb), 0.1);
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
     </style>
 </head>
-<body>
-    <!-- 通知容器 -->
-    <div id="toast-container" class="toast-container"></div>
-    
-    <!-- 侧边栏导航 -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-logo">抑郁症检测系统</div>
-        </div>
-        <ul class="sidebar-menu">
-            <li class="active"><a href="#"><i class="fas fa-tachometer-alt"></i> 仪表盘</a></li>            <li><a href="#" onclick="showTab('patients-tab')"><i class="fas fa-users"></i> 患者管理</a></li>
-            <li><a href="#" onclick="showTab('upload-tab')"><i class="fas fa-upload"></i> 上传视频</a></li>            <li><a href="#" onclick="showTab('analysis-tab')"><i class="fas fa-chart-line"></i> 分析结果</a></li>
-            <li><a href="#" onclick="showTab('trends-tab')"><i class="fas fa-chart-bar"></i> 趋势分析</a></li>
-            <li><a href="#" onclick="showTab('profile-tab')"><i class="fas fa-user-md"></i> 个人资料</a></li>
-            <li><a href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> 退出登录</a></li>
-        </ul>
-    </div>    <div class="dashboard">
-        <!-- 侧边栏导航 --> 
-        <aside class="sidebar">
+<body>    <!-- 通知容器 -->
+    <div id="toast-container" class="toast-container"></div><div class="dashboard">
+        <!-- 侧边栏导航 -->        <aside class="sidebar">
             <div class="sidebar-header">
                 <a href="/" class="logo">
                     <i class="fas fa-brain"></i> 抑郁检测系统
@@ -370,7 +530,7 @@
             <ul class="sidebar-menu">
                 <li>
                     <a href="#" class="active" onclick="showTab('dashboard-tab')">
-                        <i class="fas fa-tachometer-alt icon"></i> 仪表盘
+                        <i class="fas fa-tachometer-alt icon"></i> 概览
                     </a>
                 </li>
                 <li>
@@ -389,61 +549,107 @@
                     </a>
                 </li>
                 <li>
+                    <a href="#" onclick="showTab('trends-tab')">
+                        <i class="fas fa-chart-bar icon"></i> 趋势分析
+                    </a>
+                </li>
+                <li>
                     <a href="#" onclick="showTab('profile-tab')">
                         <i class="fas fa-user-md icon"></i> 个人资料
                     </a>
                 </li>
-                <li>
-                    <a href="#" onclick="logout(); return false;">
-                        <i class="fas fa-sign-out-alt icon"></i> 退出登录
-                    </a>
-                </li>
             </ul>
             <div class="sidebar-footer">
-                <span>© 2025 抑郁症智能检测系统</span>
+                <a href="#" onclick="logout(); return false;" class="btn btn-text">
+                    <i class="fas fa-sign-out-alt"></i> 退出登录
+                </a>
+                <div class="mt-3 text-center">
+                    <span class="text-sm">© 2025 抑郁症智能检测系统</span>
+                </div>
             </div>
         </aside>
 
         <!-- 主内容区 -->
-        <main class="main-content">
-            <div class="dashboard-header">
-                <h1>医生工作站</h1>
-                <div id="user-info" class="user-info d-flex align-center">
-                    <!-- 用户信息将通过JavaScript动态插入 -->
-                    <div class="actions">
-                        <button class="btn btn-primary btn-sm">
+        <main class="main-content">            <div class="dashboard-header">
+                <div>
+                    <h1 class="mb-1">医生工作站</h1>
+                    <div class="user-greeting text-md text-muted" id="user-greeting">欢迎回来，医生！</div>
+                </div>
+                <div id="user-info" class="d-flex align-center gap-md">
+                    <!-- 搜索框 -->
+                    <div class="search-container">
+                        <input type="search" class="form-control search-input" placeholder="搜索患者...">
+                        <button class="search-btn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- 通知按钮 -->
+                    <div class="dropdown">
+                        <button class="btn btn-icon-only">
                             <i class="fas fa-bell"></i>
+                            <span class="notification-badge">2</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 用户菜单 -->
+                    <div class="dropdown">
+                        <button class="dropdown-toggle">
+                            <div class="avatar">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <span class="user-name">李医生</span>
                         </button>
                     </div>
                 </div>
-            </div>
-
-            <div class="user-greeting" id="user-greeting">欢迎回来，医生！</div>
-
-            <!-- 仪表盘统计卡片 -->
+            </div>            <!-- 仪表盘统计卡片 -->
             <div class="stat-grid">
-                <div class="stat-card">
+                <div class="stat-card animate-fade-in">
+                    <div class="stat-icon bg-primary-light">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
                     <div class="stat-title">今日分析数量</div>
                     <div class="stat-value" id="today-analysis-count">12</div>
                     <div class="stat-change stat-up">
                         <i class="fas fa-arrow-up"></i> 3 次 (昨日)
                     </div>
                 </div>
-                <div class="stat-card">
+                
+                <div class="stat-card animate-fade-in" style="animation-delay: 0.1s">
+                    <div class="stat-icon bg-success-light">
+                        <i class="fas fa-users"></i>
+                    </div>
                     <div class="stat-title">总患者数量</div>
                     <div class="stat-value" id="total-patients">128</div>
                     <div class="stat-change stat-up">
                         <i class="fas fa-arrow-up"></i> 5 位 (本周)
                     </div>
                 </div>
-                <div class="stat-card">
+                
+                <div class="stat-card animate-fade-in" style="animation-delay: 0.2s">
+                    <div class="stat-icon bg-warning-light">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
                     <div class="stat-title">高风险患者</div>
                     <div class="stat-value" id="high-risk-patients">24</div>
                     <div class="stat-change stat-down">
                         <i class="fas fa-arrow-down"></i> 2 位 (本周)
                     </div>
                 </div>
-                <div class="stat-card">
+                
+                <div class="stat-card animate-fade-in" style="animation-delay: 0.3s">
+                    <div class="stat-icon bg-info-light">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-title">平均处理时间</div>
+                    <div class="stat-value">18分钟</div>
+                    <div class="stat-change stat-down">
+                        <i class="fas fa-arrow-down"></i> 3分钟 (上周)
+                    </div>
+                </div>                <div class="stat-card animate-fade-in" style="animation-delay: 0.4s">
+                    <div class="stat-icon bg-danger-light">
+                        <i class="fas fa-heartbeat"></i>
+                    </div>
                     <div class="stat-title">成功干预率</div>
                     <div class="stat-value" id="intervention-rate">72%</div>
                     <div class="stat-change stat-up">
@@ -454,47 +660,107 @@
 
             <!-- 标签内容区域 -->
             <div class="tab-container mt-4">
-                <ul class="tabs">
-                    <li class="tab-item active" onclick="showTab('dashboard-tab')">概览</li>
-                    <li class="tab-item" onclick="showTab('patients-tab')">患者管理</li>
-                    <li class="tab-item" onclick="showTab('upload-tab')">上传视频</li>
-                    <li class="tab-item" onclick="showTab('analysis-tab')">分析结果</li>
-                    <li class="tab-item" onclick="showTab('profile-tab')">个人资料</li>
-                </ul>
+                <!-- 移除水平标签导航 -->
                 
-                <!-- 仪表盘标签内容 -->
+                <!-- 仪表盘标签内容 -->                
                 <div id="dashboard-tab" class="tab-content active">
+                    <!-- 最近分析结果卡片 -->
                     <div class="card">
                         <div class="card-header d-flex justify-between align-center">
                             <h3 class="card-title">最近分析结果</h3>
                             <a href="#" onclick="showTab('analysis-tab')" class="btn btn-outline btn-sm">查看全部</a>
                         </div>
                         <div class="card-body">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>患者</th>
-                                        <th>文件名</th>
-                                        <th>结果</th>
-                                        <th>抑郁概率</th>
-                                        <th>分析时间</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="recentAnalysisTable">
-                                    <!-- 这里会通过JavaScript动态填充 -->
-                                </tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>患者</th>
+                                            <th>分析类型</th>
+                                            <th>结果</th>
+                                            <th>抑郁概率</th>
+                                            <th>分析时间</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentAnalysisTable">
+                                        <tr class="animate-fade-in" style="animation-delay: 0.1s">
+                                            <td>#2584</td>
+                                            <td>
+                                                <div class="d-flex align-center gap-sm">
+                                                    <div class="patient-avatar-sm">王</div>
+                                                    <div>王小明</div>
+                                                </div>
+                                            </td>
+                                            <td>视频分析</td>
+                                            <td><span class="badge badge-warning">中度抑郁</span></td>
+                                            <td>
+                                                <div class="progress-wrapper">
+                                                    <div class="progress-bar" style="width: 65%"></div>
+                                                </div>
+                                                <div class="text-sm text-muted mt-1">65%</div>
+                                            </td>
+                                            <td>2025-05-22 09:45</td>
+                                            <td>
+                                                <div class="d-flex gap-sm">
+                                                    <button class="btn btn-icon-only btn-sm" title="查看详情">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-icon-only btn-sm" title="导出报告">
+                                                        <i class="fas fa-download"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr class="animate-fade-in" style="animation-delay: 0.15s">
+                                            <td>#2583</td>
+                                            <td>
+                                                <div class="d-flex align-center gap-sm">
+                                                    <div class="patient-avatar-sm">李</div>
+                                                    <div>李小红</div>
+                                                </div>
+                                            </td>
+                                            <td>文本分析</td>
+                                            <td><span class="badge badge-success">无抑郁</span></td>
+                                            <td>
+                                                <div class="progress-wrapper">
+                                                    <div class="progress-bar" style="width: 12%"></div>
+                                                </div>
+                                                <div class="text-sm text-muted mt-1">12%</div>
+                                            </td>
+                                            <td>2025-05-22 08:30</td>
+                                            <td>
+                                                <div class="d-flex gap-sm">
+                                                    <button class="btn btn-icon-only btn-sm" title="查看详情">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-icon-only btn-sm" title="导出报告">
+                                                        <i class="fas fa-download"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="grid-2 gap-4 mt-4">
+                    <!-- 图表卡片 -->
+                    <div class="chart-layout mt-4">
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title">患者抑郁倾向分布</h3>
+                                <h3 class="card-title">患者抑郁程度分布</h3>
+                                <div class="card-actions">
+                                    <select class="form-control form-control-sm">
+                                        <option>近30天</option>
+                                        <option>近90天</option>
+                                        <option>今年</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body chart-container">
                                 <canvas id="patientDistributionChart" height="250"></canvas>
                             </div>
                         </div>
@@ -502,67 +768,134 @@
                         <div class="card">
                             <div class="card-header">
                                 <h3 class="card-title">干预效果趋势</h3>
+                                <div class="card-actions">
+                                    <button class="btn btn-sm btn-text">
+                                        <i class="fas fa-sync-alt"></i> 刷新
+                                    </button>
+                                </div>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body chart-container">
                                 <canvas id="interventionTrendChart" height="250"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
-              <!-- 患者管理标签内容 -->
-            <div id="patients-tab" class="tab-content">
+              <!-- 患者管理标签内容 -->            <div id="patients-tab" class="tab-content">
                 <div class="card mb-4">
                     <div class="card-header d-flex justify-between align-center">
                         <h3 class="card-title">患者管理</h3>
-                        <div class="search-container">
-                            <input type="text" id="patientSearchInput" class="form-control" placeholder="搜索患者...">
-                            <i class="fas fa-search search-icon"></i>
+                        <div class="d-flex gap-md">
+                            <button class="btn btn-primary btn-sm" onclick="showCreatePatientModal()">
+                                <i class="fas fa-plus mr-1"></i> 添加患者
+                            </button>
+                            <div class="search-container">
+                                <input type="text" id="patientSearchInput" class="form-control search-input" placeholder="搜索患者...">
+                                <button class="search-btn">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">
-                        <div class="filter-bar mb-3 d-flex justify-between align-center">
-                            <div class="filter-controls d-flex gap-2">
-                                <select id="patientStatusFilter" class="form-select">
+                        <div class="filter-bar mb-3 d-flex justify-between align-center flex-wrap gap-sm">
+                            <div class="filter-controls d-flex gap-md flex-wrap">
+                                <select id="patientStatusFilter" class="form-control">
                                     <option value="all">所有状态</option>
                                     <option value="active">活跃患者</option>
                                     <option value="inactive">非活跃患者</option>
                                     <option value="high-risk">高风险患者</option>
                                 </select>
-                                <select id="patientSortFilter" class="form-select">
+                                <select id="patientSortFilter" class="form-control">
                                     <option value="recent">最近活动</option>
                                     <option value="name">姓名排序</option>
                                     <option value="risk">风险等级</option>
                                 </select>
                             </div>
-                            <button class="btn btn-primary btn-sm" id="exportPatientList">
+                            <button class="btn btn-outline btn-sm" id="exportPatientList">
                                 <i class="fas fa-download mr-1"></i> 导出数据
                             </button>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
                                         <th>患者信息</th>
                                         <th>注册时间</th>
-                                        <th>最近分析</th>
+                                        <th>最近活动</th>
                                         <th>风险等级</th>
                                         <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="patientsTable">
-                                    <!-- 这里会通过JavaScript动态填充 -->
+                                    <!-- 示例数据 -->
+                                    <tr class="animate-fade-in">
+                                        <td>#P125</td>
+                                        <td>
+                                            <div class="d-flex align-center gap-sm">
+                                                <div class="patient-avatar-sm">张</div>
+                                                <div>
+                                                    <div class="fw-medium">张三</div>
+                                                    <div class="text-sm text-muted">28岁，男</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>2025-03-15</td>
+                                        <td>2025-05-20</td>
+                                        <td><span class="badge badge-danger">高风险</span></td>
+                                        <td>
+                                            <div class="d-flex gap-sm">
+                                                <button class="btn btn-icon-only btn-sm" title="查看详情">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="btn btn-icon-only btn-sm" title="编辑信息">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-icon-only btn-sm" title="发送消息">
+                                                    <i class="fas fa-comment-alt"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr class="animate-fade-in" style="animation-delay: 0.05s">
+                                        <td>#P124</td>
+                                        <td>
+                                            <div class="d-flex align-center gap-sm">
+                                                <div class="patient-avatar-sm">李</div>
+                                                <div>
+                                                    <div class="fw-medium">李四</div>
+                                                    <div class="text-sm text-muted">35岁，女</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>2025-03-10</td>
+                                        <td>2025-05-21</td>
+                                        <td><span class="badge badge-warning">中度风险</span></td>
+                                        <td>
+                                            <div class="d-flex gap-sm">
+                                                <button class="btn btn-icon-only btn-sm" title="查看详情">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                                <button class="btn btn-icon-only btn-sm" title="编辑信息">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-icon-only btn-sm" title="发送消息">
+                                                    <i class="fas fa-comment-alt"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
                         
-                        <div class="pagination-container d-flex justify-between align-center mt-4">
+                        <div class="pagination-container d-flex justify-between align-center mt-4 flex-wrap gap-md">
                             <div class="pagination-info">显示 <span id="patientsShown">1-10</span> 共 <span id="totalPatients">128</span> 位患者</div>
-                            <div class="pagination-controls">
-                                <button class="btn btn-icon btn-sm pagination-prev">
+                            <div class="pagination-controls d-flex align-center">
+                                <button class="btn btn-icon-only btn-sm pagination-prev" disabled>
                                     <i class="fas fa-chevron-left"></i>
                                 </button>
-                                <div class="pagination-pages">
+                                <div class="pagination-pages d-flex">
                                     <button class="btn btn-sm active">1</button>
                                     <button class="btn btn-sm">2</button>
                                     <button class="btn btn-sm">3</button>
@@ -577,54 +910,88 @@
                     </div>
                 </div>
                 
-                <!-- 患者统计卡片 -->
-                <div class="grid-3 gap-4">
+                <!-- 患者统计卡片 -->                <div class="chart-layout gap-md">
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">患者情绪状态分布</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-text">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body chart-container">
                             <canvas id="patientMoodChart" height="200"></canvas>
+                            <div class="chart-legend mt-3 d-flex justify-center gap-md flex-wrap">
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background-color: rgba(37, 99, 235, 0.8)"></span>
+                                    <span>无抑郁</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background-color: rgba(5, 150, 105, 0.8)"></span>
+                                    <span>轻度抑郁</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background-color: rgba(249, 115, 22, 0.8)"></span>
+                                    <span>中度抑郁</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background-color: rgba(220, 38, 38, 0.8)"></span>
+                                    <span>重度抑郁</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">年龄分布</h3>
+                            <h3 class="card-title">患者年龄分布</h3>
+                            <div class="card-actions">
+                                <select class="form-control form-control-sm">
+                                    <option>全部患者</option>
+                                    <option>高风险患者</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body chart-container">
                             <canvas id="patientAgeChart" height="200"></canvas>
                         </div>
                     </div>
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">访问频率</h3>
+                            <h3 class="card-title">访问频率趋势</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-text">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body chart-container">
                             <canvas id="patientFrequencyChart" height="200"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
               <!-- 上传视频标签内容 -->
-            <div id="upload-tab" class="tab-content">
-                <div class="grid-layout">
-                    <div class="grid-col-8">
+            <div id="upload-tab" class="tab-content">                <div class="d-flex gap-lg flex-wrap">
+                    <div class="flex-grow" style="min-width: 65%;">
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title">为患者上传视频</h3>
+                                <h3 class="card-title">上传视频进行分析</h3>
                             </div>
                             <div class="card-body">
                                 <form id="uploadForm">
-                                    <div class="grid-2 gap-4">
-                                        <div class="form-group">
-                                            <label class="form-label">选择患者</label>
+                                    <div class="d-flex gap-md flex-wrap">
+                                        <div class="form-group" style="flex: 1; min-width: 200px;">
+                                            <label>选择患者</label>
                                             <select id="patientSelect" class="form-control" required>
                                                 <option value="">-- 选择患者 --</option>
-                                                <!-- 选项会通过JavaScript动态填充 -->
+                                                <option value="1">王小明 (28岁 男性)</option>
+                                                <option value="2">李小红 (35岁 女性)</option>
+                                                <option value="3">张三 (42岁 男性)</option>
                                             </select>
                                         </div>
-                                        <div class="form-group">
-                                            <label class="form-label">检测类型</label>
+                                        <div class="form-group" style="flex: 1; min-width: 200px;">
+                                            <label>检测类型</label>
                                             <select id="analysisType" class="form-control">
                                                 <option value="standard">标准分析</option>
                                                 <option value="comprehensive">全面分析</option>
@@ -647,18 +1014,17 @@
                                             </select>
                                         </div>
                                     </div>
-                                    
-                                    <div class="form-group mt-3">
-                                        <label class="form-label">医生注释 (可选)</label>
+                                      <div class="form-group mt-3">
+                                        <label>医生注释 (可选)</label>
                                         <textarea id="doctorNotes" class="form-control" rows="3" placeholder="添加关于患者状况的任何相关备注..."></textarea>
                                     </div>
                                     
                                     <div class="form-group mt-3">
-                                        <label class="form-label">上传视频</label>
-                                        <div class="upload-area" onclick="document.getElementById('videoFile').click()">
+                                        <label>上传视频</label>
+                                        <div class="upload-area hover-lift" onclick="document.getElementById('videoFile').click()">
                                             <i class="fas fa-cloud-upload-alt"></i>
-                                            <p>点击选择视频文件或将文件拖放到此处</p>
-                                            <p class="text-muted">支持MP4、MOV、AVI格式，最大文件大小500MB</p>
+                                            <p>点击上传或拖放视频文件到此处</p>
+                                            <p class="text-muted">支持MP4、MOV、AVI格式，最大文件大小100MB</p>
                                         </div>
                                         <input type="file" id="videoFile" style="display: none;" accept=".mp4,.avi,.mov">
                                         <div id="fileInfo" style="display: none;" class="file-info mt-3">
