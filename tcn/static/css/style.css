@@ -842,6 +842,155 @@ footer a:hover {
     transition: width 0.3s ease;
 }
 
+/* Toast通知样式 */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 350px;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background-color: #fff;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-bottom: 8px;
+    animation: slide-in 0.3s ease-out forwards;
+    overflow: hidden;
+    position: relative;
+}
+
+.toast::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+}
+
+.toast-info::after {
+    background-color: #1890ff;
+}
+
+.toast-success::after {
+    background-color: #52c41a;
+}
+
+.toast-warning::after {
+    background-color: #faad14;
+}
+
+.toast-error::after {
+    background-color: #f5222d;
+}
+
+.toast-icon {
+    margin-right: 12px;
+    font-size: 16px;
+}
+
+.toast-info .toast-icon {
+    color: #1890ff;
+}
+
+.toast-success .toast-icon {
+    color: #52c41a;
+}
+
+.toast-warning .toast-icon {
+    color: #faad14;
+}
+
+.toast-error .toast-icon {
+    color: #f5222d;
+}
+
+.toast-content {
+    flex: 1;
+    font-size: 14px;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 12px;
+    margin-left: 8px;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.toast-close:hover {
+    color: #666;
+}
+
+.toast-hide {
+    animation: slide-out 0.3s ease-in forwards;
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slide-out {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* 实时数据指示器 */
+.live-indicator {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    color: #52c41a;
+    margin-left: 8px;
+}
+
+.live-indicator::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #52c41a;
+    margin-right: 4px;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(82, 196, 26, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(82, 196, 26, 0);
+    }
+}
+
 @media screen and (max-width: 992px) {
     .dashboard {
         grid-template-columns: 1fr;

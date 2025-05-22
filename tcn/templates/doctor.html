@@ -344,6 +344,9 @@
     </style>
 </head>
 <body>
+    <!-- 通知容器 -->
+    <div id="toast-container" class="toast-container"></div>
+    
     <!-- 侧边栏导航 -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -351,8 +354,8 @@
         </div>
         <ul class="sidebar-menu">
             <li class="active"><a href="#"><i class="fas fa-tachometer-alt"></i> 仪表盘</a></li>            <li><a href="#" onclick="showTab('patients-tab')"><i class="fas fa-users"></i> 患者管理</a></li>
-            <li><a href="#" onclick="showTab('upload-tab')"><i class="fas fa-upload"></i> 上传视频</a></li>
-            <li><a href="#" onclick="showTab('analysis-tab')"><i class="fas fa-chart-line"></i> 分析结果</a></li>
+            <li><a href="#" onclick="showTab('upload-tab')"><i class="fas fa-upload"></i> 上传视频</a></li>            <li><a href="#" onclick="showTab('analysis-tab')"><i class="fas fa-chart-line"></i> 分析结果</a></li>
+            <li><a href="#" onclick="showTab('trends-tab')"><i class="fas fa-chart-bar"></i> 趋势分析</a></li>
             <li><a href="#" onclick="showTab('profile-tab')"><i class="fas fa-user-md"></i> 个人资料</a></li>
             <li><a href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> 退出登录</a></li>
         </ul>
@@ -858,6 +861,151 @@
                         <div class="card-body">
                             <canvas id="resultDistributionChart" height="250"></canvas>
                         </div>
+                    </div>                </div>
+            </div>
+              <!-- 趋势分析标签内容 -->
+            <div id="trends-tab" class="tab-content">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-between align-center">
+                        <h3 class="card-title">患者抑郁趋势分析</h3>
+                        <div class="live-indicator">实时数据</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="filter-bar mb-4">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label class="form-label">选择患者</label>
+                                        <select id="trendPatientSelect" class="form-control">
+                                            <option value="">所有患者</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label class="form-label">时间范围</label>
+                                        <select id="timeRangeSelect" class="form-control">
+                                            <option value="7">过去7天</option>
+                                            <option value="30" selected>过去30天</option>
+                                            <option value="90">过去3个月</option>
+                                            <option value="180">过去6个月</option>
+                                            <option value="365">过去1年</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group mt-4">
+                                        <button type="button" class="btn btn-primary" onclick="updateTrendsAnalysis()">
+                                            <i class="fas fa-sync-alt"></i> 更新分析
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 趋势图表区域 -->
+                        <div class="chart-container mb-4" style="height: 350px;">
+                            <canvas id="depressionTrendsChart"></canvas>
+                        </div>
+                        
+                        <div class="grid-2 gap-4 mt-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">干预效果比较</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container" style="height: 280px;">
+                                        <canvas id="interventionEffectivenessChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">情绪波动分析</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container" style="height: 280px;">
+                                        <canvas id="moodFluctuationChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">相关因素对比</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">选择比较因素</label>
+                                        <div class="checkbox-group">
+                                            <label class="checkbox-inline">
+                                                <input type="checkbox" name="factors" value="facial" checked> 面部表情
+                                            </label>
+                                            <label class="checkbox-inline">
+                                                <input type="checkbox" name="factors" value="voice" checked> 语音分析
+                                            </label>
+                                            <label class="checkbox-inline">
+                                                <input type="checkbox" name="factors" value="body" checked> 肢体语言
+                                            </label>
+                                            <label class="checkbox-inline">
+                                                <input type="checkbox" name="factors" value="intervention"> 治疗干预
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="chart-container" style="height: 300px;">
+                                        <canvas id="factorsComparisonChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">统计摘要</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-summary">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="averageDepressionRate">-</div>
+                                        <div class="stat-label">平均抑郁率</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="improvementRate">-</div>
+                                        <div class="stat-label">改善率</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="relapseCases">-</div>
+                                        <div class="stat-label">复发病例</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="stablePatients">-</div>
+                                        <div class="stat-label">稳定病例</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="btn-group mt-4">
+                            <button type="button" class="btn btn-primary" onclick="generateTrendsReport()">
+                                <i class="fas fa-file-pdf"></i> 生成趋势报告
+                            </button>
+                            <button type="button" class="btn btn-info" onclick="exportTrendsData()">
+                                <i class="fas fa-file-export"></i> 导出数据
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1103,8 +1251,7 @@
                 </button>
             </div>
         </div>
-    </div><script>
-        // 当文档加载完成时执行
+    </div><script>        // 当文档加载完成时执行
         document.addEventListener('DOMContentLoaded', function() {
             // 获取用户令牌
             const token = localStorage.getItem('access_token');
@@ -1115,6 +1262,14 @@
             }
             
             console.log('找到访问令牌，长度:', token.length);
+            
+            // 初始化WebSocket连接
+            initializeWebSocket();
+            
+            // 请求通知权限
+            if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                Notification.requestPermission();
+            }
             
             // 验证令牌与角色
             async function validateToken() {
@@ -1848,6 +2003,123 @@
             localStorage.removeItem('user_role');
             localStorage.removeItem('user_data');
             window.location.href = '/login';
+        }
+
+        // WebSocket连接和实时通知功能
+        let notificationSocket = null;
+        
+        function initializeWebSocket() {
+            const token = localStorage.getItem('access_token');
+            if (!token) return;
+            
+            // 使用安全的WebSocket连接
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/notifications?token=${token}`;
+            
+            notificationSocket = new WebSocket(wsUrl);
+            
+            notificationSocket.onopen = function(e) {
+                console.log('WebSocket连接已建立');
+                showToast('实时数据连接已建立', 'success');
+            };
+            
+            notificationSocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                console.log('收到WebSocket消息:', data);
+                
+                if (data.type === 'new_analysis') {
+                    // 处理新的分析结果
+                    showNotification('新的分析结果可用', `患者#${data.user_id}的分析已完成`);
+                    // 自动更新数据
+                    if (document.getElementById('dashboard-tab').classList.contains('active')) {
+                        loadDashboardData();
+                    } else if (document.getElementById('analysis-tab').classList.contains('active')) {
+                        loadAllAnalysisResults();
+                    }
+                } else if (data.type === 'new_patient') {
+                    // 处理新患者注册
+                    showNotification('新患者注册', `新患者 ${data.username} 已注册`);
+                    loadPatients();
+                } else if (data.type === 'system_alert') {
+                    // 系统通知
+                    showNotification('系统通知', data.message, 'warning');
+                }
+            };
+            
+            notificationSocket.onclose = function(event) {
+                if (event.wasClean) {
+                    console.log(`WebSocket连接已关闭，代码=${event.code} 原因=${event.reason}`);
+                } else {
+                    console.error('WebSocket连接意外关闭');
+                }
+                
+                // 尝试重新连接
+                setTimeout(initializeWebSocket, 3000);
+            };
+            
+            notificationSocket.onerror = function(error) {
+                console.error('WebSocket错误:', error);
+            };
+        }
+        
+        // 显示桌面通知
+        function showNotification(title, message, type = 'info') {
+            // 检查通知权限
+            if (Notification.permission === 'granted') {
+                const notification = new Notification(title, {
+                    body: message,
+                    icon: '/static/img/notification-icon.png'
+                });
+                
+                notification.onclick = function() {
+                    window.focus();
+                    this.close();
+                };
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        showNotification(title, message, type);
+                    }
+                });
+            }
+            
+            // 同时在页面内显示Toast通知
+            showToast(message, type);
+        }
+        
+        // 显示Toast通知
+        function showToast(message, type = 'info') {
+            // 创建Toast元素
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            // 设置图标
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            else if (type === 'warning') icon = 'exclamation-triangle';
+            else if (type === 'error') icon = 'times-circle';
+            
+            toast.innerHTML = `
+                <div class="toast-icon">
+                    <i class="fas fa-${icon}"></i>
+                </div>
+                <div class="toast-content">
+                    ${message}
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            // 添加到通知容器
+            const container = document.getElementById('toast-container');
+            container.appendChild(toast);
+            
+            // 自动关闭
+            setTimeout(() => {
+                toast.classList.add('toast-hide');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
         }
     </script>
 </body>
