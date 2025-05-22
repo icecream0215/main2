@@ -3,93 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录</title>
+    <title>登录 - 抑郁症智能检测系统</title>
     <link rel="stylesheet" href="/static/css/user-menu.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="/static/js/main.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
+            font-family: 'Inter', 'SF Pro Display', 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+            background-color: var(--background-color);
+            background-image: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
         }
         .login-container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            width: 350px;
+            background-color: var(--surface-color);
+            padding: 40px;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            width: 380px;
+            max-width: 90%;
+            position: relative;
+            overflow: hidden;
+        }
+        .login-container:before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
         }
         h2 {
             text-align: center;
-            margin-bottom: 20px;
-            color: #333;
+            margin-bottom: 30px;
+            color: var(--text-color);
+            font-weight: 600;
+            font-size: 1.75rem;
         }
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 24px;
         }
         label {
             display: block;
-            margin-bottom: 5px;
-            color: #555;
-        }        input[type="text"],
+            margin-bottom: 8px;
+            color: var(--text-color);
+            font-weight: 500;
+            font-size: 0.95rem;
+        }        
+        input[type="text"],
         input[type="password"],
         select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
             box-sizing: border-box;
+            transition: var(--transition);
+            font-size: 1rem;
+        }
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.2);
+            outline: none;
         }
         .btn {
             width: 100%;
-            padding: 10px;
-            background-color: #4CAF50;
+            padding: 14px;
+            background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            font-size: 16px;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            margin-top: 8px;
         }
         .btn:hover {
-            background-color: #45a049;
+            background-color: var(--primary-dark);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
         }
         .links {
-            margin-top: 15px;
+            margin-top: 24px;
             text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 24px;
         }
         .links a {
-            color: #2196F3;
+            color: var(--primary-color);
             text-decoration: none;
-            margin: 0 10px;
+            font-size: 0.95rem;
+            transition: var(--transition);
         }
         .links a:hover {
+            color: var(--primary-dark);
             text-decoration: underline;
         }
         .error-message {
-            color: #f44336;
-            margin-bottom: 15px;
+            color: var(--danger-color);
+            margin-bottom: 20px;
             text-align: center;
             display: none;
+            padding: 10px;
+            background-color: rgba(234, 67, 53, 0.05);
+            border-radius: var(--radius-sm);
+            border-left: 3px solid var(--danger-color);
+        }
+        .app-logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .app-logo img {
+            height: 60px;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h2>用户登录</h2>
+        <div class="app-logo">
+            <h2>抑郁症智能检测系统</h2>
+        </div>
         <div id="error-message" class="error-message"></div>
         <form id="login-form">
             <div class="form-group">
                 <label for="username">用户名</label>
-                <input type="text" id="username" name="username" required>
+                <input type="text" id="username" name="username" placeholder="请输入用户名" required>
             </div>
             <div class="form-group">
                 <label for="password">密码</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" placeholder="请输入密码" required>
             </div>
             <div class="form-group">
                 <label for="role">用户角色</label>
@@ -160,12 +210,30 @@
                     // 存储用户角色和数据
                     localStorage.setItem('user_role', userInfo.role);
                     localStorage.setItem('user_data', JSON.stringify(userInfo));                    // 根据角色重定向到不同页面
+                    // 创建一个form来提交令牌，以便在跳转时带上认证信息
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    
+                    // 创建令牌输入域
+                    const tokenInput = document.createElement('input');
+                    tokenInput.type = 'hidden';
+                    tokenInput.name = 'auth_token';
+                    tokenInput.value = data.access_token;
+                    
+                    // 将令牌域添加到表单
+                    form.appendChild(tokenInput);
+                    document.body.appendChild(form);
+                    
+                    // 设置表单提交的URL并提交
                     if (userInfo.role === 'admin') {
-                        window.location.href = '/admin';
+                        form.action = '/admin';
+                        form.submit();
                     } else if (userInfo.role === 'doctor') {
-                        window.location.href = '/doctor';
+                        form.action = '/doctor';
+                        form.submit();
                     } else {
-                        window.location.href = '/patient';
+                        form.action = '/patient';
+                        form.submit();
                     }
                 } else {
                     // 处理登录失败

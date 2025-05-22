@@ -191,13 +191,13 @@
 <body>
     <header>
         <div class="container">
-            <h1>抑郁症检测系统 - 管理员控制台</h1>
-            <nav>
+            <h1>抑郁症检测系统 - 管理员控制台</h1>            <nav>
                 <ul>
                     <li><a href="/">首页</a></li>
                     <li><a href="/admin" class="active">管理控制台</a></li>
                     <li><a href="/patient">患者视图</a></li>
                     <li><a href="/doctor">医生视图</a></li>
+                    <li><a href="#" onclick="logout(); return false;">退出登录</a></li>
                 </ul>
             </nav>
             <div id="user-info" class="user-info">
@@ -719,16 +719,77 @@
         });        // 页面初始化
         document.addEventListener('DOMContentLoaded', function() {
             console.log('管理员页面已加载，正在初始化...');
-            // 初始化页面并检查用户认证
-            checkAuthStatus();
             
-            // 初始化管理员页面特定功能
-            if (typeof setupAdminPageFunctions === 'function') {
-                setupAdminPageFunctions();
+            // 获取用户令牌
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                console.error('未找到访问令牌，未登录状态，重定向到登录页面');
+                window.location.href = '/login';
+                return;
             }
             
-            // 加载系统统计数据
-            loadSystemStatistics();
+            console.log('找到访问令牌，长度:', token.length);
+            
+            // 验证令牌与角色
+            async function validateToken() {
+                try {
+                    console.log('正在验证令牌...');
+                    
+                    // 设置拦截器为所有请求添加认证头
+                    const originalFetch = window.fetch;
+                    window.fetch = function() {
+                        const args = Array.prototype.slice.call(arguments);
+                        if (args[1] === undefined) {
+                            args[1] = {};
+                        }
+                        if (args[1].headers === undefined) {
+                            args[1].headers = {};
+                        }
+                        args[1].headers['Authorization'] = `Bearer ${token}`;
+                        return originalFetch.apply(this, args);
+                    };
+                    
+                    // 验证令牌并检查用户权限
+                    const response = await fetch('/users/me');
+                    console.log('验证响应状态:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('认证失败，服务器响应:', errorText);
+                        throw new Error(`认证失败 (${response.status}): ${errorText}`);
+                    }
+                    
+                    const user = await response.json();
+                    console.log('获取到用户信息:', user);
+                    
+                    if (user.role !== 'admin') {
+                        console.error('权限不足，用户角色:', user.role);
+                        alert(`权限不足，需要管理员权限，当前角色: ${user.role}`);
+                        window.location.href = '/login';
+                        return false;
+                    }
+                    
+                    return true;
+                } catch(e) {
+                    console.error('验证令牌失败:', e);
+                    alert('验证失败，请重新登录');
+                    window.location.href = '/login';
+                    return false;
+                }
+            }
+            
+            // 执行验证
+            validateToken().then(valid => {
+                if (!valid) return;
+                
+                // 初始化管理员页面特定功能
+                if (typeof setupAdminPageFunctions === 'function') {
+                    setupAdminPageFunctions();
+                }
+                
+                // 加载系统统计数据
+                loadSystemStatistics();
+            });
         });
         
         // 加载系统统计数据
@@ -750,12 +811,19 @@
                 console.error('加载系统统计数据失败:', error);
             });
         }
-        
-        // 更新管理员仪表板
+          // 更新管理员仪表板
         function updateAdminDashboard(data) {
             // 实现管理员仪表板数据展示逻辑
             console.log('管理员仪表板数据:', data);
             // 这里根据实际数据结构进行更新
+        }
+        
+        // 退出登录函数
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_role');
+            localStorage.removeItem('user_data');
+            window.location.href = '/login';
         }
     </script>
 </body>

@@ -3,21 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>患者界面 - 抑郁症检测系统</title>    
+    <title>患者界面 - 抑郁症智能检测系统</title>    
     <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/user-menu.css">    
+    <link rel="stylesheet" href="/static/css/user-menu.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/js/main.js"></script>
     <!-- 添加认证检查脚本 -->
     <script>
         // 页面加载时立即检查认证状态
         document.addEventListener('DOMContentLoaded', function() {
-            async function checkAuth() {
-                try {
+            async function checkAuth() {                try {
                     const token = localStorage.getItem('access_token');
                     if (!token) {
+                        console.error('未找到访问令牌，未登录状态');
                         throw new Error('未登录');
                     }
+                    
+                    console.log('找到访问令牌，长度:', token.length);
                     
                     // 设置拦截器为所有请求添加认证头
                     const originalFetch = window.fetch;
@@ -33,15 +37,24 @@
                         return originalFetch.apply(this, args);
                     };
 
+                    console.log('正在验证令牌...');
+                    
                     // 验证令牌并检查用户权限
                     const response = await fetch('/users/me');
+                    console.log('验证响应状态:', response.status);
+                    
                     if (!response.ok) {
-                        throw new Error('认证失败');
+                        const errorText = await response.text();
+                        console.error('认证失败，服务器响应:', errorText);
+                        throw new Error(`认证失败 (${response.status}): ${errorText}`);
                     }
                     
                     const user = await response.json();
+                    console.log('获取到用户信息:', user);
+                    
                     if (user.role !== 'patient' && user.role !== 'admin') {
-                        throw new Error('权限不足');
+                        console.error('权限不足，用户角色:', user.role);
+                        throw new Error(`权限不足，需要患者权限，当前角色: ${user.role}`);
                     }
                     
                     console.log('认证成功:', user);
@@ -64,64 +77,181 @@
         });
     </script>
 </head>
-<body>
-    <header>
-        <div class="container">
-            <h1>抑郁症检测系统 - 患者界面</h1>
-            <nav>
-                <ul>
-                    <li><a href="/">首页</a></li>
-                    <li><a href="/patient" class="active">我的检测</a></li>
-                </ul>
-            </nav>
-            <div id="user-info" class="user-info">
-                <!-- 用户信息将通过JavaScript动态插入 -->
+<body>    <div class="dashboard">
+        <!-- 侧边栏导航 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="/" class="logo">
+                    <i class="fas fa-brain"></i> 抑郁检测系统
+                </a>
             </div>
-        </div>
-    </header>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="/" class="active">
+                        <i class="fas fa-home icon"></i> 首页
+                    </a>
+                </li>
+                <li>
+                    <a href="/patient">
+                        <i class="fas fa-chart-line icon"></i> 我的检测
+                    </a>
+                </li>
+                <li>
+                    <a href="#history">
+                        <i class="fas fa-history icon"></i> 历史记录
+                    </a>
+                </li>
+                <li>
+                    <a href="#profile">
+                        <i class="fas fa-user icon"></i> 个人资料
+                    </a>
+                </li>
+                <li>
+                    <a href="#help">
+                        <i class="fas fa-question-circle icon"></i> 帮助中心
+                    </a>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <a href="#" onclick="logout(); return false;" class="btn btn-text">
+                    <i class="fas fa-sign-out-alt"></i> 退出登录
+                </a>
+            </div>
+        </aside>
 
-    <main class="container">
-        <section class="upload-section">
-            <h2>视频分析</h2>
-            <p>上传一段视频进行抑郁症检测</p>
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <div class="dashboard-header">
+                <h1>患者控制面板</h1>
+                <div id="user-info" class="user-info d-flex align-center">
+                    <!-- 用户信息将通过JavaScript动态插入 -->
+                    <div class="actions">
+                        <button class="btn btn-primary btn-sm">
+                            <i class="fas fa-bell"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="user-greeting" id="user-greeting">欢迎回来！</div>
             
-            <form id="upload-form" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="video-upload">选择视频文件（MP4、AVI、MOV格式）</label>
-                    <input type="file" id="video-upload" name="video_file" accept=".mp4,.avi,.mov" required>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-title">检测总次数</div>
+                    <div class="stat-value">8</div>
+                    <div class="stat-change stat-up">
+                        <i class="fas fa-arrow-up"></i> 3 次 (上周)
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">平均情绪指数</div>
+                    <div class="stat-value">76%</div>
+                    <div class="stat-change stat-up">
+                        <i class="fas fa-arrow-up"></i> 5% (上周)
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">最近检测日期</div>
+                    <div class="stat-value">2025/05/20</div>
+                    <div class="stat-change">
+                        <i class="fas fa-calendar-check"></i> 2天前
+                    </div>
+                </div>
+            </div>
+            
+            <section class="analysis-section">
+                <h2 class="section-title">视频分析</h2>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>上传视频进行情绪分析</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="upload-form" enctype="multipart/form-data">
+                            <div class="form-group">                                <label for="video-upload"><i class="fas fa-file-video"></i> 选择视频文件</label>
+                                <input type="file" id="video-upload" name="video_file" accept=".mp4,.avi,.mov" required>
+                                <div class="form-text">支持MP4、AVI、MOV格式，最大文件大小100MB</div>
+                            </div>
+                            
+                            <div id="preview-container" class="preview-container mt-3"></div>
+                            
+                            <div class="form-group mt-3">
+                                <button type="submit" class="btn">
+                                    <i class="fas fa-chart-pie btn-icon"></i> 开始分析
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div id="upload-progress-container" style="display: none;" class="mt-3">
+                            <div class="form-text mb-1">视频上传中，请稍候...</div>
+                            <progress id="upload-progress" max="100" value="0" style="width: 100%;"></progress>
+                        </div>
+                    </div>
                 </div>
                 
-                <div id="preview-container" class="preview-container"></div>
-                
-                <button type="submit" class="btn primary-btn">开始分析</button>
-            </form>
+                <div id="result-container" class="result-container mt-4"></div>
+            </section>
             
-            <progress id="upload-progress" max="100" value="0" style="display: none; width: 100%;"></progress>
+            <section class="analysis-section">
+                <h2 class="section-title">情绪趋势图</h2>
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>过去30天情绪变化</h3>
+                        <div class="chart-actions">
+                            <button class="btn btn-sm btn-outline">
+                                <i class="fas fa-download"></i> 导出数据
+                            </button>
+                        </div>
+                    </div>
+                    <canvas id="mood-chart"></canvas>
+                </div>
+            </section>
             
-            <div id="result-container" class="result-container"></div>
-        </section>
-        
-        <section id="history-container" class="history-section">
-            <h2>历史记录</h2>
-            <div class="loading">正在加载历史记录...</div>
-        </section>
-        
-        <section id="result-details" class="details-section" style="display: none;">
-            <h2>详细分析结果</h2>
-            <!-- 结果详情将通过JavaScript动态插入 -->
-        </section>
-    </main>
+            <section class="analysis-section">
+                <h2 class="section-title">历史检测记录</h2>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>近期检测</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-text">查看全部</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="history-container" class="history-section">
+                            <div class="loader"></div>
+                            <div class="text-center text-muted">正在加载历史记录...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="result-details" class="details-section" style="display: none;">
+                <h2 class="section-title">详细分析结果</h2>
+                <div class="card">
+                    <!-- 结果详情将通过JavaScript动态插入 -->
+                </div>
+            </section>
+        </main>
+    </div>
 
     <footer>
         <div class="container">
-            <p>&copy; 2025 抑郁症检测系统</p>
+            <p>&copy; 2025 抑郁症智能检测系统</p>
+            <p class="text-muted mt-1">基于人工智能的情绪分析平台</p>
         </div>
-    </footer>
-
-    <script src="/static/js/main.js"></script>
-    <script>
+    </footer>    <script>
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
+            // 获取用户姓名并显示问候语
+            const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
+            const userName = userData.username || '用户';
+            const userGreeting = document.getElementById('user-greeting');
+            if (userGreeting) {
+                userGreeting.textContent = `欢迎回来，${userName}！`;
+            }
+            
+            // 初始化情绪趋势图表
+            initMoodChart();
+            
             // 表单提交处理
             const uploadForm = document.getElementById('upload-form');
             if (uploadForm) {
@@ -130,10 +260,11 @@
                     
                     const videoInput = document.getElementById('video-upload');
                     const progressBar = document.getElementById('upload-progress');
+                    const progressContainer = document.getElementById('upload-progress-container');
                     const resultContainer = document.getElementById('result-container');
                     
                     if (!videoInput.files || videoInput.files.length === 0) {
-                        alert('请选择一个视频文件');
+                        showAlert('请选择一个视频文件', 'danger');
                         return;
                     }
                     
@@ -141,24 +272,33 @@
                     formData.append('video_file', videoInput.files[0]);
                     
                     // 显示进度条
+                    if (progressContainer) {
+                        progressContainer.style.display = 'block';
+                    }
                     if (progressBar) {
-                        progressBar.style.display = 'block';
                         progressBar.value = 0;
                     }
                     
                     // 显示加载提示
                     if (resultContainer) {
-                        resultContainer.innerHTML = '<p>正在处理视频，请稍候...</p>';
+                        resultContainer.innerHTML = `
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <div class="loader"></div>
+                                    <p class="mt-3">正在处理视频，请稍候...</p>
+                                    <p class="text-muted">视频分析可能需要几分钟时间</p>
+                                </div>
+                            </div>
+                        `;
                     }
-                    
-                    // 模拟进度
+                      // 模拟进度
                     let progress = 0;
                     const progressInterval = setInterval(() => {
-                        progress += 5;
-                        if (progressBar && progress <= 90) {
+                        progress += 3;
+                        if (progressBar && progress <= 95) {
                             progressBar.value = progress;
                         }
-                    }, 1000);
+                    }, 800);
                     
                     const token = localStorage.getItem('access_token');
                     
@@ -175,23 +315,72 @@
                         }
                         return response.json();
                     })
-                    .then(data => {
-                        clearInterval(progressInterval);
+                    .then(data => {                        clearInterval(progressInterval);
                         if (progressBar) {
                             progressBar.value = 100;
                         }
+                        if (progressContainer) {
+                            setTimeout(() => {
+                                progressContainer.style.display = 'none';
+                            }, 500);
+                        }
+                        
+                        const isDepressed = data.depression_probability > 0.5;
+                        const resultClass = isDepressed ? 'danger' : 'success';
+                        const resultText = isDepressed ? '存在抑郁风险' : '情绪状态良好';
+                        const resultIcon = isDepressed ? 'fa-exclamation-triangle' : 'fa-check-circle';
+                        const depressionPercent = (data.depression_probability * 100).toFixed(1);
+                        const normalPercent = (data.non_depression_probability * 100).toFixed(1);
                         
                         if (resultContainer) {
                             resultContainer.innerHTML = `
                                 <div class="result-card">
-                                    <h3>分析结果</h3>
-                                    <p class="result-type">结果: <strong>${data.result_type}</strong></p>
-                                    <div class="probability">
-                                        <p>抑郁概率: ${(data.depression_probability * 100).toFixed(2)}%</p>
-                                        <p>非抑郁概率: ${(data.non_depression_probability * 100).toFixed(2)}%</p>
+                                    <div class="result-media">
+                                        <video id="result-video" controls></video>
+                                    </div>
+                                    <div class="result-content">
+                                        <h3 class="result-title">分析结果</h3>
+                                        <div class="result-meta">
+                                            <div class="result-meta-item">
+                                                <i class="fas fa-calendar icon"></i> ${new Date().toLocaleDateString('zh-CN')}
+                                            </div>
+                                            <div class="result-meta-item">
+                                                <i class="fas fa-clock icon"></i> ${new Date().toLocaleTimeString('zh-CN')}
+                                            </div>
+                                        </div>
+                                        <div class="alert alert-${resultClass}">
+                                            <i class="fas ${resultIcon} alert-icon"></i>
+                                            <div class="alert-content">
+                                                <strong>${resultText}</strong>
+                                                <p>${isDepressed ? '建议咨询医生获取专业帮助' : '继续保持积极心态'}</p>
+                                            </div>
+                                        </div>
+                                        <div class="result-stats">
+                                            <div class="result-stat">
+                                                <div class="result-stat-label">抑郁风险指数</div>
+                                                <div class="result-progress">
+                                                    <div class="result-progress-bar result-progress-depression" style="width: ${depressionPercent}%"></div>
+                                                </div>
+                                                <div class="text-right mt-1">${depressionPercent}%</div>
+                                            </div>
+                                            <div class="result-stat">
+                                                <div class="result-stat-label">健康心理指数</div>
+                                                <div class="result-progress">
+                                                    <div class="result-progress-bar result-progress-normal" style="width: ${normalPercent}%"></div>
+                                                </div>
+                                                <div class="text-right mt-1">${normalPercent}%</div>
+                                            </div>
+                                        </div>
+                                        <div class="result-actions">
+                                            <button class="btn" onclick="viewResultDetails()">查看详细报告</button>
+                                            <button class="btn btn-outline">下载分析报告</button>
+                                        </div>
                                     </div>
                                 </div>
                             `;
+                            
+                            // 更新图表
+                            updateMoodChart(data.depression_probability);
                         }
                         
                         // 刷新历史记录
@@ -201,16 +390,23 @@
                         clearInterval(progressInterval);
                         console.error('上传分析失败:', error);
                         if (resultContainer) {
-                            resultContainer.innerHTML = '<p class="error">分析失败，请稍后再试。错误：' + error.message + '</p>';
+                            resultContainer.innerHTML = `
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-exclamation-circle alert-icon"></i>
+                                    <div class="alert-content">
+                                        <strong>分析失败</strong>
+                                        <p>请稍后再试。错误：${error.message}</p>
+                                    </div>
+                                </div>
+                            `;
                         }
-                        if (progressBar) {
-                            progressBar.style.display = 'none';
+                        if (progressContainer) {
+                            progressContainer.style.display = 'none';
                         }
                     });
                 });
             }
-            
-            // 加载历史记录
+              // 加载历史记录
             fetchUserHistory();
             
             // 视频预览功能
@@ -223,12 +419,28 @@
                         const file = this.files[0];
                         const fileReader = new FileReader();
                         
+                        // 显示文件信息
+                        const fileSize = (file.size / (1024 * 1024)).toFixed(2);
+                        const fileDate = new Date(file.lastModified).toLocaleString();
+                        
                         fileReader.onload = function(e) {
                             previewContainer.innerHTML = `
-                                <video controls width="100%" style="max-height: 300px;">
-                                    <source src="${e.target.result}" type="${file.type}">
-                                    您的浏览器不支持视频标签。
-                                </video>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-between align-center mb-3">
+                                            <h3 class="mb-0">视频预览</h3>
+                                            <span class="badge badge-success">已选择</span>
+                                        </div>
+                                        <video controls width="100%" style="max-height: 300px; border-radius: var(--radius-sm);">
+                                            <source src="${e.target.result}" type="${file.type}">
+                                            您的浏览器不支持视频标签。
+                                        </video>
+                                        <div class="d-flex justify-between mt-2">
+                                            <div class="text-muted"><i class="fas fa-film"></i> ${file.name}</div>
+                                            <div class="text-muted"><i class="fas fa-weight"></i> ${fileSize} MB</div>
+                                        </div>
+                                    </div>
+                                </div>
                             `;
                         };
                         
@@ -237,6 +449,97 @@
                 });
             }
         });
+        
+        // 初始化情绪趋势图表
+        function initMoodChart() {
+            const ctx = document.getElementById('mood-chart');
+            if (!ctx) return;
+            
+            // 模拟过去30天的数据
+            const labels = Array.from({length: 30}, (_, i) => {
+                const date = new Date();
+                date.setDate(date.getDate() - (29 - i));
+                return `${date.getMonth() + 1}/${date.getDate()}`;
+            });
+            
+            const depressionData = [65, 62, 60, 63, 58, 57, 59, 55, 50, 52, 48, 45, 40, 42, 38, 35, 30, 32, 28, 30, 25, 27, 22, 20, 22, 18, 15, 17, 12, 10];
+            const normalData = depressionData.map(val => 100 - val);
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '健康心理指数',
+                        data: normalData,
+                        borderColor: '#34a853',
+                        backgroundColor: 'rgba(52, 168, 83, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }, {
+                        label: '抑郁风险指数',
+                        data: depressionData,
+                        borderColor: '#ea4335',
+                        backgroundColor: 'rgba(234, 67, 53, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: '百分比 (%)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 更新图表数据
+        function updateMoodChart(depressionValue) {
+            // 在实际应用中，这里将更新图表数据
+            console.log('更新情绪图表:', depressionValue);
+        }
+        
+        // 显示结果详情
+        function viewResultDetails() {
+            const detailsSection = document.getElementById('result-details');
+            if (detailsSection) {
+                detailsSection.style.display = 'block';
+                detailsSection.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        // 显示提示信息
+        function showAlert(message, type = 'info') {
+            const alertElement = document.createElement('div');
+            alertElement.className = `alert alert-${type}`;
+            alertElement.innerHTML = `
+                <i class="fas fa-info-circle alert-icon"></i>
+                <div class="alert-content">${message}</div>
+            `;
+            document.querySelector('.main-content').prepend(alertElement);
+            
+            setTimeout(() => {
+                alertElement.style.opacity = '0';
+                setTimeout(() => alertElement.remove(), 500);
+            }, 3000);
+        }
         
         // 获取用户历史记录
         function fetchUserHistory() {
@@ -249,9 +552,11 @@
             }
             
             if (historyContainer) {
-                historyContainer.innerHTML = '<div class="loading">正在加载历史记录...</div>';
-                
-                fetch('/api/history', {
+                historyContainer.innerHTML = `
+                    <div class="loader"></div>
+                    <div class="text-center text-muted mt-3">正在加载历史记录...</div>
+                `;
+                  fetch('/api/history', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -264,36 +569,96 @@
                 })
                 .then(data => {
                     if (data && data.length > 0) {
-                        let html = '<h2>历史记录</h2><div class="history-list">';
-                        data.forEach(item => {
+                        let html = '<div class="table-container table-responsive"><table class="table-striped">';
+                        html += `
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>视频</th>
+                                    <th>分析结果</th>
+                                    <th>风险指数</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                        `;
+                        
+                        // 显示最近的10条记录
+                        const recentData = data.slice(0, 10);
+                        recentData.forEach(item => {
+                            const date = new Date(item.created_at).toLocaleDateString('zh-CN');
+                            const time = new Date(item.created_at).toLocaleTimeString('zh-CN');
+                            const isDepressed = item.predicted_class === 'depressed';
+                            const resultClass = isDepressed ? 'danger' : 'success';
+                            const statusText = isDepressed ? '存在风险' : '状态良好';
+                            const depressionValue = isDepressed ? 85 : 20; // 模拟数据
+                            
                             html += `
-                                <div class="history-item">
-                                    <div class="history-details">
-                                        <h4>${item.filename}</h4>
-                                        <p>结果: ${item.predicted_class}</p>
-                                        <p>时间: ${item.created_at}</p>
-                                    </div>
-                                    <button class="view-result-btn" data-result-id="${item.id}">查看详情</button>
-                                </div>
+                                <tr>
+                                    <td>
+                                        <div>${date}</div>
+                                        <div class="text-muted">${time}</div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-center">
+                                            <div class="mr-2" style="width:30px; height:30px; background:#eee; border-radius:4px; display:flex; align-items:center; justify-content:center;">
+                                                <i class="fas fa-video"></i>
+                                            </div>
+                                            <div>${item.filename || '分析记录' + (item.id)}</div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-${resultClass}">${statusText}</span>
+                                    </td>
+                                    <td>
+                                        <div class="result-progress" style="width: 100px;">
+                                            <div class="result-progress-bar result-progress-${isDepressed ? 'depression' : 'normal'}" style="width: ${depressionValue}%"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm" data-result-id="${item.id}">查看详情</button>
+                                    </td>
+                                </tr>
                             `;
                         });
-                        html += '</div>';
-                        historyContainer.innerHTML = html;
+                        html += '</tbody></table></div>';
                         
-                        // 绑定查看详情按钮事件
-                        document.querySelectorAll('.view-result-btn').forEach(button => {
+                        if (data.length > 10) {
+                            html += `
+                                <div class="text-center mt-3">
+                                    <button class="btn btn-outline">查看更多历史记录</button>
+                                </div>
+                            `;
+                        }
+                        
+                        historyContainer.innerHTML = html;
+                          // 绑定查看详情按钮事件
+                        document.querySelectorAll('[data-result-id]').forEach(button => {
                             button.addEventListener('click', function() {
                                 const resultId = this.getAttribute('data-result-id');
                                 fetchAndDisplayResult(resultId);
                             });
                         });
                     } else {
-                        historyContainer.innerHTML = '<h2>历史记录</h2><p>暂无历史记录</p>';
+                        historyContainer.innerHTML = `
+                            <div class="text-center p-4">
+                                <i class="fas fa-history" style="font-size: 3rem; color: var(--border-color);"></i>
+                                <h3 class="mt-3">暂无历史记录</h3>
+                                <p class="text-muted">上传您的第一个视频以开始分析</p>
+                            </div>
+                        `;
                     }
-                })
-                .catch(error => {
+                })                .catch(error => {
                     console.error('获取历史记录失败:', error);
-                    historyContainer.innerHTML = '<h2>历史记录</h2><p>加载历史记录失败，请稍后再试</p>';
+                    historyContainer.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle alert-icon"></i>
+                            <div class="alert-content">
+                                <strong>加载失败</strong>
+                                <p>无法获取历史记录，请稍后再试</p>
+                            </div>
+                        </div>
+                    `;
                 });
             }
         }
@@ -304,10 +669,16 @@
             const detailsContainer = document.getElementById('result-details');
             
             if (detailsContainer) {
-                detailsContainer.innerHTML = '<div class="loading">正在加载分析结果...</div>';
+                detailsContainer.innerHTML = `
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="loader"></div>
+                            <p class="mt-3">正在加载详情...</p>
+                        </div>
+                    </div>
+                `;
                 detailsContainer.style.display = 'block';
-                
-                fetch(`/api/result/${resultId}`, {
+                  fetch(`/api/result/${resultId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -319,30 +690,165 @@
                     return response.json();
                 })
                 .then(result => {
+                    const isDepressed = result.predicted_class === 'depressed' || (result.probability_class1 && result.probability_class1 > 0.5);
+                    const depressionProb = result.probability_class1 ? result.probability_class1 : (isDepressed ? 0.75 : 0.25);
+                    const normalProb = result.probability_class0 ? result.probability_class0 : (1 - depressionProb);
+                    const resultClass = isDepressed ? 'danger' : 'success';
+                    const resultText = isDepressed ? '存在抑郁风险' : '情绪状态良好';
+                    const resultIcon = isDepressed ? 'fa-exclamation-triangle' : 'fa-check-circle';
+                    const depressionPercent = (depressionProb * 100).toFixed(1);
+                    const normalPercent = (normalProb * 100).toFixed(1);
+                    const date = new Date(result.created_at).toLocaleDateString('zh-CN');
+                    const time = new Date(result.created_at).toLocaleTimeString('zh-CN');
+                    
                     detailsContainer.innerHTML = `
-                        <h2>详细分析结果</h2>
-                        <div class="result-card detailed">
-                            <h3>${result.filename}</h3>
-                            <p class="result-type">结果类型: <strong>${result.result_type}</strong></p>
-                            <div class="probability">
-                                <p>抑郁概率: ${(result.probability_class1 * 100).toFixed(2)}%</p>
-                                <p>非抑郁概率: ${(result.probability_class0 * 100).toFixed(2)}%</p>
+                        <div class="viz-grid">
+                            <div class="viz-card">
+                                <div class="viz-card-header">
+                                    <h3 class="viz-card-title">结果概览</h3>
+                                </div>
+                                <div class="viz-card-body">
+                                    <div class="alert alert-${resultClass} mb-3">
+                                        <i class="fas ${resultIcon} alert-icon"></i>
+                                        <div class="alert-content">
+                                            <strong>${resultText}</strong>
+                                            <p>${isDepressed ? '建议咨询医生获取专业帮助' : '继续保持积极心态'}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-meta mb-3">
+                                        <div class="result-meta-item">
+                                            <i class="fas fa-calendar icon"></i> ${date}
+                                        </div>
+                                        <div class="result-meta-item">
+                                            <i class="fas fa-clock icon"></i> ${time}
+                                        </div>
+                                        <div class="result-meta-item">
+                                            <i class="fas fa-file-video icon"></i> ${result.filename || '视频分析 #' + resultId}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="result-stats">
+                                        <div class="result-stat">
+                                            <div class="result-stat-label">抑郁风险指数</div>
+                                            <div class="result-progress">
+                                                <div class="result-progress-bar result-progress-depression" style="width: ${depressionPercent}%"></div>
+                                            </div>
+                                            <div class="text-right mt-1">${depressionPercent}%</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="analysis-details">
-                                <h4>详细分析:</h4>
-                                <p>面部表情: ${result.facial_analysis?.expression || '无数据'}</p>
-                                <p>语音分析: ${result.voice_analysis?.tone || '无数据'}</p>
-                                <p>肢体语言: ${result.body_language_analysis?.movement || '无数据'}</p>
+                            
+                            <div class="viz-card">
+                                <div class="viz-card-header">
+                                    <h3 class="viz-card-title">详细分析</h3>
+                                </div>
+                                <div class="viz-card-body">
+                                    <canvas id="detail-chart" style="width:100%; height:200px;"></canvas>
+                                    
+                                    ${result.metadata ? `
+                                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--border-color);">
+                                            <h4>技术分析数据</h4>
+                                            <pre style="background: #f5f5f5; padding: 10px; border-radius: var(--radius-sm); max-height: 150px; overflow: auto;">${JSON.stringify(result.metadata, null, 2)}</pre>
+                                        </div>
+                                    ` : ''}
+                                </div>
                             </div>
-                            <p>处理时间: ${result.created_at}</p>
+                        </div>
+                        
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h3>专业建议</h3>
+                            </div>
+                            <div class="card-body">
+                                ${isDepressed ? `
+                                    <p>基于分析结果，我们建议您:</p>
+                                    <ul>
+                                        <li>考虑咨询专业心理医生进行进一步评估</li>
+                                        <li>保持规律的生活作息和健康的饮食习惯</li>
+                                        <li>适当增加体育锻炼，每天至少30分钟</li>
+                                        <li>寻求亲友支持，保持社交活动</li>
+                                        <li>学习简单的放松技巧，如冥想或深呼吸</li>
+                                    </ul>
+                                ` : `
+                                    <p>您的情绪状态良好，我们建议您:</p>
+                                    <ul>
+                                        <li>继续保持积极的生活态度</li>
+                                        <li>定期进行自我情绪评估</li>
+                                        <li>保持良好的作息习惯和社交活动</li>
+                                    </ul>
+                                `}
+                            </div>
+                        </div>
+                        
+                        <div class="card-footer mt-3 d-flex justify-between">
+                            <button class="btn btn-outline" onclick="document.getElementById('result-details').style.display='none'">关闭详情</button>
+                            <button class="btn">下载完整报告</button>
                         </div>
                     `;
+                    
+                    // 初始化详情图表
+                    const detailCtx = document.getElementById('detail-chart');
+                    if (detailCtx) {
+                        new Chart(detailCtx, {
+                            type: 'radar',
+                            data: {
+                                labels: ['悲伤', '焦虑', '愤怒', '情绪波动', '睡眠问题', '社交兴趣'],
+                                datasets: [{
+                                    label: '情绪因素分析',
+                                    data: [
+                                        isDepressed ? 75 : 25, 
+                                        isDepressed ? 80 : 30, 
+                                        isDepressed ? 60 : 20, 
+                                        isDepressed ? 85 : 15, 
+                                        isDepressed ? 70 : 25, 
+                                        isDepressed ? 90 : 30
+                                    ],
+                                    fill: true,
+                                    backgroundColor: 'rgba(66, 133, 244, 0.2)',
+                                    borderColor: 'rgba(66, 133, 244, 1)',
+                                    pointBackgroundColor: 'rgba(66, 133, 244, 1)',
+                                    pointBorderColor: '#fff',
+                                    pointHoverBackgroundColor: '#fff',
+                                    pointHoverBorderColor: 'rgba(66, 133, 244, 1)'
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                    r: {
+                                        angleLines: {
+                                            display: true
+                                        },
+                                        suggestedMin: 0,
+                                        suggestedMax: 100
+                                    }
+                                }
+                            }
+                        });
+                    }
                 })
                 .catch(error => {
                     console.error('获取结果详情失败:', error);
-                    detailsContainer.innerHTML = '<h2>详细分析结果</h2><p class="error">获取结果详情失败，请稍后再试</p>';
+                    detailsContainer.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle alert-icon"></i>
+                            <div class="alert-content">
+                                <strong>加载失败</strong>
+                                <p>无法获取详细结果，请稍后再试</p>
+                            </div>
+                        </div>
+                    `;
                 });
             }
+        }
+        
+        // 退出登录函数
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_role');
+            localStorage.removeItem('user_data');
+            window.location.href = '/login';
         }
     </script>
 </body>

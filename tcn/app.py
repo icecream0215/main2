@@ -355,6 +355,63 @@ async def admin_page(request: Request, current_user: User = Depends(get_current_
             detail="加载页面时发生错误"
         )
 
+# 添加POST方法处理admin路由的表单认证
+@app.post("/admin", response_class=HTMLResponse)
+async def admin_page_post(auth_token: str = Form(...)):
+    try:
+        # 记录令牌（不记录完整令牌，只记录一部分用于调试）
+        if auth_token:
+            logger.info(f"收到管理员页面POST认证请求，令牌长度: {len(auth_token)}, 前15字符: {auth_token[:15]}...")
+        else:
+            logger.warning("收到管理员页面POST认证请求，但未提供令牌")
+            
+        # 手动验证令牌并获取用户
+        db = SessionLocal()
+        try:
+            # 解码JWT令牌
+            payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            if not username:
+                logger.warning("令牌中没有用户名信息")
+                raise HTTPException(status_code=401, detail="无效的认证凭据")
+                
+            # 获取用户信息    
+            user = get_user(db, username)
+            if not user:
+                logger.warning(f"用户不存在: {username}")
+                raise HTTPException(status_code=401, detail="用户不存在")
+                
+            # 检查用户角色
+            logger.info(f"用户 {user.username} (角色: {user.role}) 尝试访问管理员页面")
+            if user.role != "admin":
+                logger.warning(f"用户 {user.username} 尝试访问管理员页面但权限不足（角色: {user.role}）")
+                raise HTTPException(status_code=403, detail="没有访问权限")
+                
+            # 返回管理员页面
+            logger.info(f"用户 {user.username} 通过POST方式成功访问管理员页面")
+            with open(os.path.join(os.path.dirname(__file__), "templates", "admin.html"), "r", encoding="utf-8") as f:
+                content = f.read()
+            return content
+                
+        except JWTError as e:
+            logger.error(f"JWT令牌解码失败: {str(e)}")
+            raise HTTPException(status_code=401, detail="无效的认证凭据")
+        finally:
+            db.close()
+    except HTTPException as e:
+        # 返回错误信息而不是直接重定向
+        return HTMLResponse(
+            content=f"<html><body><h1>错误</h1><p>{e.detail}</p><p><a href='/login'>返回登录页面</a></p></body></html>",
+            status_code=e.status_code
+        )
+    except Exception as e:
+        logger.error(f"处理管理员页面POST请求时出错: {e}", exc_info=True)
+        # 返回一个带错误消息的HTML页面
+        return HTMLResponse(
+            content=f"<html><body><h1>服务器错误</h1><p>处理请求时发生错误: {str(e)}</p><p><a href='/login'>返回登录页面</a></p></body></html>",
+            status_code=500
+        )
+
 # 医生页面路由
 @app.get("/doctor", response_class=HTMLResponse)
 async def doctor_page(request: Request, current_user: User = Depends(get_current_doctor_user)):
@@ -387,6 +444,12 @@ async def doctor_page(request: Request, current_user: User = Depends(get_current
 @app.post("/doctor", response_class=HTMLResponse)
 async def doctor_page_post(auth_token: str = Form(...)):
     try:
+        # 记录令牌（不记录完整令牌，只记录一部分用于调试）
+        if auth_token:
+            logger.info(f"收到POST认证请求，令牌长度: {len(auth_token)}, 前15字符: {auth_token[:15]}...")
+        else:
+            logger.warning("收到POST认证请求，但未提供令牌")
+            
         # 手动验证令牌并获取用户
         db = SessionLocal()
         try:
@@ -394,30 +457,45 @@ async def doctor_page_post(auth_token: str = Form(...)):
             payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
             if not username:
+                logger.warning("令牌中没有用户名信息")
                 raise HTTPException(status_code=401, detail="无效的认证凭据")
                 
             # 获取用户信息    
             user = get_user(db, username)
             if not user:
+                logger.warning(f"用户不存在: {username}")
                 raise HTTPException(status_code=401, detail="用户不存在")
                 
             # 检查用户角色
+            logger.info(f"用户 {user.username} (角色: {user.role}) 尝试访问医生页面")
             if user.role not in ["doctor", "admin"]:
+                logger.warning(f"用户 {user.username} 尝试访问医生页面但权限不足（角色: {user.role}）")
                 raise HTTPException(status_code=403, detail="没有访问权限")
                 
             # 返回医生页面
+            logger.info(f"用户 {user.username} 通过POST方式成功访问医生页面")
             with open(os.path.join(os.path.dirname(__file__), "templates", "doctor.html"), "r", encoding="utf-8") as f:
                 content = f.read()
             return content
                 
-        except JWTError:
+        except JWTError as e:
+            logger.error(f"JWT令牌解码失败: {str(e)}")
             raise HTTPException(status_code=401, detail="无效的认证凭据")
         finally:
             db.close()
+    except HTTPException as e:
+        # 返回错误信息而不是直接重定向
+        return HTMLResponse(
+            content=f"<html><body><h1>错误</h1><p>{e.detail}</p><p><a href='/login'>返回登录页面</a></p></body></html>",
+            status_code=e.status_code
+        )
     except Exception as e:
-        logger.error(f"处理医生页面POST请求时出错: {e}")
-        # 返回登录页面
-        return RedirectResponse(url="/login", status_code=303)
+        logger.error(f"处理医生页面POST请求时出错: {e}", exc_info=True)
+        # 返回一个带错误消息的HTML页面
+        return HTMLResponse(
+            content=f"<html><body><h1>服务器错误</h1><p>处理请求时发生错误: {str(e)}</p><p><a href='/login'>返回登录页面</a></p></body></html>",
+            status_code=500
+        )
 
 # 患者页面路由
 @app.get("/patient", response_class=HTMLResponse)
@@ -445,6 +523,62 @@ async def patient_page(request: Request, current_user: User = Depends(get_curren
             detail="加载页面时发生错误"
         )
 
+# 添加POST方法处理patient路由的表单认证
+@app.post("/patient", response_class=HTMLResponse)
+async def patient_page_post(auth_token: str = Form(...)):
+    try:
+        # 记录令牌（不记录完整令牌，只记录一部分用于调试）
+        if auth_token:
+            logger.info(f"收到患者页面POST认证请求，令牌长度: {len(auth_token)}, 前15字符: {auth_token[:15]}...")
+        else:
+            logger.warning("收到患者页面POST认证请求，但未提供令牌")
+            
+        # 手动验证令牌并获取用户
+        db = SessionLocal()
+        try:
+            # 解码JWT令牌
+            payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            if not username:
+                logger.warning("令牌中没有用户名信息")
+                raise HTTPException(status_code=401, detail="无效的认证凭据")
+                
+            # 获取用户信息    
+            user = get_user(db, username)
+            if not user:
+                logger.warning(f"用户不存在: {username}")
+                raise HTTPException(status_code=401, detail="用户不存在")
+                
+            # 检查用户角色
+            logger.info(f"用户 {user.username} (角色: {user.role}) 尝试访问患者页面")
+            if user.role not in ["patient", "admin"]:
+                logger.warning(f"用户 {user.username} 尝试访问患者页面但权限不足（角色: {user.role}）")
+                raise HTTPException(status_code=403, detail="没有访问权限")
+                
+            # 返回患者页面
+            logger.info(f"用户 {user.username} 通过POST方式成功访问患者页面")
+            with open(os.path.join(os.path.dirname(__file__), "templates", "patient.html"), "r", encoding="utf-8") as f:
+                content = f.read()
+            return content
+                
+        except JWTError as e:
+            logger.error(f"JWT令牌解码失败: {str(e)}")
+            raise HTTPException(status_code=401, detail="无效的认证凭据")
+        finally:
+            db.close()
+    except HTTPException as e:
+        # 返回错误信息而不是直接重定向
+        return HTMLResponse(
+            content=f"<html><body><h1>错误</h1><p>{e.detail}</p><p><a href='/login'>返回登录页面</a></p></body></html>",
+            status_code=e.status_code
+        )
+    except Exception as e:
+        logger.error(f"处理患者页面POST请求时出错: {e}", exc_info=True)
+        # 返回一个带错误消息的HTML页面
+        return HTMLResponse(
+            content=f"<html><body><h1>服务器错误</h1><p>处理请求时发生错误: {str(e)}</p><p><a href='/login'>返回登录页面</a></p></body></html>",
+            status_code=500
+        )
 
 # 视频特征提取函数 (使用OpenFace)
 def extract_face_features(video_path):
